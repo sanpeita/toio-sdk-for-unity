@@ -30,7 +30,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private Text keyLogLabel;
         private readonly StringBuilder keyLogBuilder = new StringBuilder();
 
-        private string footerMessage = "Toio Left Hand Lab ver1.0. Forward/back uses motor speed. Left/right uses attitude yaw delta.";
+        private string footerMessage = "Toio Left Hand Lab ver1.0. W/S uses pitch tilt. A/D uses roll tilt.";
 
         private void Awake()
         {
@@ -88,7 +88,7 @@ namespace toio.Experiments.ToioLeftHandLab
             footerMessage = "Connecting to nearest toio core cube...";
             RefreshTexts();
             await inputSource.Connect();
-            footerMessage = "Connected. ver1.0 is ready. Roll forward/back or spin left/right on a flat surface.";
+            footerMessage = "Connected. ver1.0 is ready. Tilt forward/back for W/S, tilt left/right for A/D.";
         }
 
         public void Forward()
@@ -151,10 +151,11 @@ namespace toio.Experiments.ToioLeftHandLab
             SetText(textPose, $"Vertical Axis: {vertical:+0;-0;0}");
             SetText(textShake, $"Horizontal Axis: {horizontal:+0;-0;0}");
             SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel}.");
-            SetText(textStandardID, "Detected W/A/S/D are typed into the on-screen text box.");
+            SetText(textStandardID, "Detected keys are typed into the on-screen text box. W/S uses pitch, A/D uses roll.");
             SetText(textAngle, connected ? "Cube: ready" : "Press Connect to start.");
-            SetText(textSpeed, "Test: roll forward/back on a flat surface to type W/S.");
-            SetText(textMag, "Test: rotate the cube left/right in place to type A/D.");
+            SetText(textSpeed, $"Speed raw: L={inputSource.LastLeftSpeed} R={inputSource.LastRightSpeed}");
+            var e = inputSource.LastEulers;
+            SetText(textMag, $"Euler raw: x={e.x:F1} y={e.y:F1} z={e.z:F1}  (A/D uses x, W/S uses y)");
 
             var fallback = showKeyboardFallbackHint ? " Keyboard fallback is ON." : string.Empty;
             SetText(textAttitude, footerMessage + fallback);
@@ -234,24 +235,24 @@ namespace toio.Experiments.ToioLeftHandLab
             if (existingField != null)
             {
                 keyLogInputField = existingField.GetComponent<InputField>();
-                var label = GameObject.Find("ToioKeyInputLabel");
-                if (label != null)
+                var existingLabel = GameObject.Find("ToioKeyInputLabel");
+                if (existingLabel != null)
                 {
-                    keyLogLabel = label.GetComponent<Text>();
+                    keyLogLabel = existingLabel.GetComponent<Text>();
                 }
                 return;
             }
 
-            var font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
             var panel = CreateUiObject("ToioKeyInputPanel", canvasTransform);
             ConfigureRect(panel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(860f, 160f));
             var panelImage = panel.gameObject.AddComponent<Image>();
             panelImage.color = new Color(0.08f, 0.08f, 0.08f, 0.85f);
 
-            var label = CreateUiObject("ToioKeyInputLabel", panel);
-            ConfigureRect(label, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(-24f, 28f));
-            keyLogLabel = label.gameObject.AddComponent<Text>();
+            var labelRect = CreateUiObject("ToioKeyInputLabel", panel);
+            ConfigureRect(labelRect, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(-24f, 28f));
+            keyLogLabel = labelRect.gameObject.AddComponent<Text>();
             keyLogLabel.font = font;
             keyLogLabel.fontSize = 24;
             keyLogLabel.alignment = TextAnchor.MiddleLeft;

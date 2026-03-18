@@ -5,10 +5,14 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 ### 目的
 
 - マットではない平面で toio を動かす
-- 前後の手転がしを `W/S`
 - 左右の手旋回を `A/D`
 - まずは Unity 内で `WASD` 相当の仮想キー状態が作れるかを確認する
 - Unity Editor 実行中に、判定されたキー文字をシーン内テキストボックスへ入力する
+
+### 今日の到達点
+
+- `A/D` の旋回検出は実用的に動作
+- `W/S` は仕様変更し、前後への傾き入力として扱う
 
 ### 開き方
 
@@ -27,8 +31,8 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 ### 実装メモ
 
 - `ToioWasdInput`
-  - 前後判定は `motorSpeedCallback`
-  - 左右判定は `attitudeCallback` の yaw 差分
+  - `W/S` は `attitudeCallback` の pitch
+  - `A/D` は `attitudeCallback` の roll
 - `ToioLeftHandLabController`
   - 既存の `Sample_Sensor` UI を流用して状態を表示
   - `W/A/S/D` 判定を受けてシーン内の InputField に文字を追記
@@ -36,5 +40,7 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 ### 前提
 
 - これはまず `Unity 内で使う仮想キー入力` の実験環境です。
+- `x=roll`, `y=pitch`, `z=yaw` として扱っています。
+- 現在の割り当ては `A/D = roll(x)`, `W/S = pitch(y)` です。
 - OS 全体に対して物理キーボードのようにキー送出する機能は、現時点では入れていません。
 - 実機の床面や摩擦でしきい値調整が必要になる可能性があります。

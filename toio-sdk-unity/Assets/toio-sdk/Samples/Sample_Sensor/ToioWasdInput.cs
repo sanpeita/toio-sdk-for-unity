@@ -14,17 +14,16 @@ namespace toio.Samples.Sample_Sensor
         [SerializeField] private bool useKeyboardFallback = true;
 
         [Header("Forward / Backward")]
-        [SerializeField] private bool invertForwardBackward = false;
-        [SerializeField] private int moveSpeedThreshold = 18;
-        [SerializeField] private int straightDiffThreshold = 14;
+        [SerializeField] private bool invertForwardBackward = true;
+        [SerializeField] private float forwardBackwardTiltThresholdDeg = 8f;
 
-        [Header("Turn")]
+        [Header("Left / Right")]
         [SerializeField] private bool invertTurnDirection = false;
-        [SerializeField] private float turnVelocityThresholdDegPerSec = 45f;
+        [SerializeField] private float leftRightTiltThresholdDeg = 8f;
 
         [Header("Timing")]
         [SerializeField] private int attitudeIntervalMs = 50;
-        [SerializeField] private float holdSeconds = 0.12f;
+        [SerializeField] private float holdSeconds = 0.2f;
 
         [Header("Debug")]
         [SerializeField] private bool logStateChanges = false;
@@ -35,20 +34,20 @@ namespace toio.Samples.Sample_Sensor
         private int lastLeftSpeed;
         private int lastRightSpeed;
 
-        private bool hasYaw;
-        private float lastYaw;
-        private float lastYawTime;
-
         private float wUntil;
         private float aUntil;
         private float sUntil;
         private float dUntil;
+        private Vector3 lastEulers;
 
         private int lastLoggedHorizontal;
         private int lastLoggedVertical;
 
         public Cube Cube => cube;
         public bool IsConnected => cube != null && cube.isConnected;
+        public int LastLeftSpeed => lastLeftSpeed;
+        public int LastRightSpeed => lastRightSpeed;
+        public Vector3 LastEulers => lastEulers;
 
         public bool WPressed => GetVirtualKey(KeyCode.W);
         public bool APressed => GetVirtualKey(KeyCode.A);
@@ -111,11 +110,11 @@ namespace toio.Samples.Sample_Sensor
 
             await cube.ConfigMotorRead(true);
             await cube.ConfigAttitudeSensor(
-                Cube.AttitudeFormat.PreciseEulers,
+                Cube.AttitudeFormat.Eulers,
                 attitudeIntervalMs,
                 Cube.AttitudeNotificationType.OnChanged
             );
-            cube.RequestAttitudeSensor(Cube.AttitudeFormat.PreciseEulers);
+            cube.RequestAttitudeSensor(Cube.AttitudeFormat.Eulers);
         }
 
         public bool GetVirtualKey(KeyCode keyCode)
@@ -169,80 +168,39 @@ namespace toio.Samples.Sample_Sensor
         {
             lastLeftSpeed = currentCube.leftSpeed;
             lastRightSpeed = currentCube.rightSpeed;
-
-            var averageSpeed = (lastLeftSpeed + lastRightSpeed) * 0.5f;
-            var wheelDiff = Mathf.Abs(lastLeftSpeed - lastRightSpeed);
-            if (Mathf.Abs(averageSpeed) < moveSpeedThreshold || wheelDiff > straightDiffThreshold)
-            {
-                return;
-            }
-
-            var forward = averageSpeed > 0f;
-            if (invertForwardBackward)
-            {
-                forward = !forward;
-            }
-
-            if (forward)
-            {
-                PressW();
-            }
-            else
-            {
-                PressS();
-            }
         }
 
         private void OnAttitude(Cube currentCube)
         {
-            var yaw = currentCube.eulers.z;
-            var now = Time.time;
-            if (!hasYaw)
+            lastEulers = currentCube.eulers;
+            var roll = currentCube.eulers.x;
+            var pitch = currentCube.eulers.y;
+
+            if (Mathf.Abs(pitch) >= forwardBackwardTiltThresholdDeg)
             {
-                hasYaw = true;
-                lastYaw = yaw;
-                lastYawTime = now;
-                return;
+                var forward = pitch < 0f;
+                if (invertForwardBackward)
+                {
+                    forward = !forward;
+                }
+
+                if (forward) PressW();
+                else PressS();
             }
 
-            var deltaTime = now - lastYawTime;
-            if (deltaTime <= 0.0001f)
-            {
-                lastYaw = yaw;
-                lastYawTime = now;
-                return;
-            }
-
-            var deltaYaw = Mathf.DeltaAngle(lastYaw, yaw);
-            var yawVelocity = deltaYaw / deltaTime;
-            lastYaw = yaw;
-            lastYawTime = now;
-
-            var averageSpeed = (lastLeftSpeed + lastRightSpeed) * 0.5f;
-            if (Mathf.Abs(averageSpeed) >= moveSpeedThreshold)
+            if (Mathf.Abs(roll) < leftRightTiltThresholdDeg)
             {
                 return;
             }
 
-            if (Mathf.Abs(yawVelocity) < turnVelocityThresholdDegPerSec)
-            {
-                return;
-            }
-
-            var turnRight = yawVelocity > 0f;
+            var turnRight = roll > 0f;
             if (invertTurnDirection)
             {
                 turnRight = !turnRight;
             }
 
-            if (turnRight)
-            {
-                PressD();
-            }
-            else
-            {
-                PressA();
-            }
+            if (turnRight) PressD();
+            else PressA();
         }
 
         private void PressW() => InjectVirtualKey(KeyCode.W);
@@ -265,11 +223,6 @@ namespace toio.Samples.Sample_Sensor
 
         private float GetHorizontal()
         {
-            if (GetVertical() != 0f)
-            {
-                return 0f;
-            }
-
             var negative = IsActive(aUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.A));
             var positive = IsActive(dUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.D));
 

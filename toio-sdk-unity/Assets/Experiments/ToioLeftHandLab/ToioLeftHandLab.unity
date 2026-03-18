@@ -3743,13 +3743,12 @@ MonoBehaviour:
   connectType: 2
   connectOnStart: 0
   useKeyboardFallback: 1
-  invertForwardBackward: 0
-  moveSpeedThreshold: 18
-  straightDiffThreshold: 14
+  invertForwardBackward: 1
+  forwardBackwardTiltThresholdDeg: 8
   invertTurnDirection: 0
-  turnVelocityThresholdDegPerSec: 45
+  leftRightTiltThresholdDeg: 8
   attitudeIntervalMs: 50
-  holdSeconds: 0.12
+  holdSeconds: 0.2
   logStateChanges: 0
 --- !u!4 &1566689159
 Transform:
