@@ -173,34 +173,13 @@ namespace toio.Samples.Sample_Sensor
         private void OnAttitude(Cube currentCube)
         {
             lastEulers = currentCube.eulers;
-            var roll = currentCube.eulers.x;
-            var pitch = currentCube.eulers.y;
+            var vertical = GetToioVertical();
+            if (vertical > 0f) PressW();
+            else if (vertical < 0f) PressS();
 
-            if (Mathf.Abs(pitch) >= forwardBackwardTiltThresholdDeg)
-            {
-                var forward = pitch < 0f;
-                if (invertForwardBackward)
-                {
-                    forward = !forward;
-                }
-
-                if (forward) PressW();
-                else PressS();
-            }
-
-            if (Mathf.Abs(roll) < leftRightTiltThresholdDeg)
-            {
-                return;
-            }
-
-            var turnRight = roll > 0f;
-            if (invertTurnDirection)
-            {
-                turnRight = !turnRight;
-            }
-
-            if (turnRight) PressD();
-            else PressA();
+            var horizontal = GetToioHorizontal();
+            if (horizontal > 0f) PressD();
+            else if (horizontal < 0f) PressA();
         }
 
         private void PressW() => InjectVirtualKey(KeyCode.W);
@@ -210,8 +189,9 @@ namespace toio.Samples.Sample_Sensor
 
         private float GetVertical()
         {
-            var positive = IsActive(wUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.W));
-            var negative = IsActive(sUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.S));
+            var toio = GetToioVertical();
+            var positive = toio > 0f || IsActive(wUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.W));
+            var negative = toio < 0f || IsActive(sUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.S));
 
             if (positive == negative)
             {
@@ -223,8 +203,9 @@ namespace toio.Samples.Sample_Sensor
 
         private float GetHorizontal()
         {
-            var negative = IsActive(aUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.A));
-            var positive = IsActive(dUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.D));
+            var toio = GetToioHorizontal();
+            var negative = toio < 0f || IsActive(aUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.A));
+            var positive = toio > 0f || IsActive(dUntil) || (useKeyboardFallback && Input.GetKey(KeyCode.D));
 
             if (positive == negative)
             {
@@ -237,6 +218,38 @@ namespace toio.Samples.Sample_Sensor
         private static bool IsActive(float until)
         {
             return Time.time <= until;
+        }
+
+        private float GetToioVertical()
+        {
+            if (!IsConnected || Mathf.Abs(lastEulers.y) < forwardBackwardTiltThresholdDeg)
+            {
+                return 0f;
+            }
+
+            var forward = lastEulers.y < 0f;
+            if (invertForwardBackward)
+            {
+                forward = !forward;
+            }
+
+            return forward ? 1f : -1f;
+        }
+
+        private float GetToioHorizontal()
+        {
+            if (!IsConnected || Mathf.Abs(lastEulers.x) < leftRightTiltThresholdDeg)
+            {
+                return 0f;
+            }
+
+            var turnRight = lastEulers.x > 0f;
+            if (invertTurnDirection)
+            {
+                turnRight = !turnRight;
+            }
+
+            return turnRight ? 1f : -1f;
         }
 
         private void RemoveListeners()

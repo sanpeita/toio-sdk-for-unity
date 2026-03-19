@@ -1,4 +1,4 @@
-## Toio Left Hand Lab ver1.0
+## Toio Left Hand Lab ver1.1
 
 toio コア キューブ 1 台を、左手用の入力ガジェットとして試すための Unity 実験環境です。
 
@@ -34,11 +34,27 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - 判定結果をシーン内テキストボックスへ可視化できる
 - 左手入力ガジェット実験の最初の土台として使える状態
 
+### ver1.1 記録
+
+- 記録日: 2026-03-19
+- バージョン名: `ver1.1`
+- 追加内容: Windows 向けの外部キー送出実験を追加
+
+### ver1.1 仕様
+
+- `WindowsExternalWasdOutput` を同シーンに追加
+- Play 中に Unity 以外のウィンドウを前面にすると、`W/A/S/D` を外部アプリへ送出できる
+- 既定では `TapRepeat` モード
+- まずはメモ帳で `WWWWAAASSSDD` のように並ぶことを確認する想定
+- `HoldWhileTilted` モードに切り替えると、将来の Minecraft 操作に近い「押しっぱなし」実験ができる
+
 ### 開き方
 
 1. Unity Hub で `toio-sdk-unity` フォルダを開きます。
 2. `Assets/Experiments/ToioLeftHandLab/ToioLeftHandLab.unity` を開きます。
 3. 再生して `Connect` を押します。
+4. メモ帳を開いて前面に出します。
+5. toio を傾けると、メモ帳へ `W/A/S/D` が入力されます。
 
 ### シーンの見方
 
@@ -47,6 +63,7 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - `Horizontal Axis` が `A/D`
 - 画面下部のテキストボックスに、検出された `W/A/S/D` が順に入力されます。
 - 画面下部テキストに実験条件と現在の補足が出ます。
+- 外部入力を試す場合は、Unity の Play を維持したままメモ帳を前面にします。
 
 ### 実装メモ
 
@@ -56,15 +73,20 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - `ToioLeftHandLabController`
   - 既存の `Sample_Sensor` UI を流用して状態を表示
   - `W/A/S/D` 判定を受けてシーン内の InputField に文字を追記
+- `WindowsExternalWasdOutput`
+  - Windows の前景ウィンドウへ `W/A/S/D` を送る実験用コンポーネント
+  - `TapRepeat` と `HoldWhileTilted` を切り替え可能
 
 ### 前提
 
-- これはまず `Unity 内で使う仮想キー入力` の実験環境です。
+- これはまず `Unity 内で使う仮想キー入力` を土台にしつつ、ver1.1 では Windows 外部出力も試せる実験環境です。
 - `x=roll`, `y=pitch`, `z=yaw` として扱っています。
 - 現在の割り当ては `A/D = roll(x)`, `W/S = pitch(y)` です。
-- OS 全体に対して物理キーボードのようにキー送出する機能は、現時点では入れていません。
+- Windows 外部キー送出は `Unity Editor` / `Windows Standalone` を前提にしています。
+- 外部出力は Windows 限定です。
 - 実機の床面や摩擦でしきい値調整が必要になる可能性があります。
 
 ### メモ
 
-- 今回の `ver1.0` は「toio を左手レバーのように傾けて、Unity 内で `W/A/S/D` 相当の入力として扱う」最初の確認版です。
+- `ver1.0` は Unity 内の仮想 WASD 確認版です。
+- `ver1.1` はその土台の上で、Windows 外部入力まで伸ばした試作版です。

@@ -3707,6 +3707,7 @@ GameObject:
   - component: {fileID: 1566689159}
   - component: {fileID: 1566689158}
   - component: {fileID: 1566689160}
+  - component: {fileID: 1566689161}
   m_Layer: 0
   m_Name: ToioLeftHandLab
   m_TagString: Untagged
@@ -3750,6 +3751,28 @@ MonoBehaviour:
   attitudeIntervalMs: 50
   holdSeconds: 0.2
   logStateChanges: 0
+--- !u!114 &1566689161
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1566689157}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b998847bf96485b9db7d42beafcc0aa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  inputSource: {fileID: 1566689160}
+  outputMode: 1
+  onlyWhenUnityIsNotFocused: 0
+  sendW: 1
+  sendA: 1
+  sendS: 1
+  sendD: 1
+  firstRepeatDelaySeconds: 0.35
+  repeatIntervalSeconds: 0.08
+  logKeyOutput: 1
 --- !u!4 &1566689159
 Transform:
   m_ObjectHideFlags: 0
