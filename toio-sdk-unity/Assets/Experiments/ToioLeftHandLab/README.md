@@ -39,6 +39,7 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - 記録日: 2026-03-19
 - バージョン名: `ver1.1`
 - 追加内容: Windows 向けの外部キー送出実験を追加
+- 確認結果: Unity Editor 実行中にメモ帳へ `W/A/S/D` を外部入力できることを確認
 
 ### ver1.1 仕様
 
@@ -47,6 +48,7 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - 既定では `TapRepeat` モード
 - まずはメモ帳で `WWWWAAASSSDD` のように並ぶことを確認する想定
 - `HoldWhileTilted` モードに切り替えると、将来の Minecraft 操作に近い「押しっぱなし」実験ができる
+- 既定シーンでは外部キー送出ログを Console で確認できる
 
 ### 開き方
 
@@ -55,6 +57,7 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 3. 再生して `Connect` を押します。
 4. メモ帳を開いて前面に出します。
 5. toio を傾けると、メモ帳へ `W/A/S/D` が入力されます。
+6. Minecraft 方向の検証をする場合は、`WindowsExternalWasdOutput` の `Output Mode` を `HoldWhileTilted` に切り替えます。
 
 ### シーンの見方
 
@@ -76,6 +79,7 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - `WindowsExternalWasdOutput`
   - Windows の前景ウィンドウへ `W/A/S/D` を送る実験用コンポーネント
   - `TapRepeat` と `HoldWhileTilted` を切り替え可能
+  - 既定シーンでは `TapRepeat` と Console ログ出力を有効化済み
 
 ### 前提
 
@@ -84,9 +88,11 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - 現在の割り当ては `A/D = roll(x)`, `W/S = pitch(y)` です。
 - Windows 外部キー送出は `Unity Editor` / `Windows Standalone` を前提にしています。
 - 外部出力は Windows 限定です。
+- まずはメモ帳などの単純なテキスト入力先で確認し、その後にゲーム入力へ進める想定です。
 - 実機の床面や摩擦でしきい値調整が必要になる可能性があります。
 
 ### メモ
 
 - `ver1.0` は Unity 内の仮想 WASD 確認版です。
 - `ver1.1` はその土台の上で、Windows 外部入力まで伸ばした試作版です。
+- `ver1.1` の次段では、`HoldWhileTilted` を中心に Minecraft 向けの押しっぱなし調整を行う想定です。

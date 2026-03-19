@@ -5,15 +5,16 @@
 ### この構成を選ぶ理由
 
 - `Sample_Sensor` は 1 台接続の土台がすでにあります。
-- `motorSpeedCallback` と `attitudeCallback` の両方を使っており、今回の仕様に必要な API が最初からそろっています。
+- `attitudeCallback` を使って、姿勢角ベースの入力実験を組み込みやすいです。
 - 実機でも Simulator でも同じサンプル構成を流用しやすいです。
 
 ### 追加したファイル
 
 - `ToioWasdInput.cs`
-  - 前後の手転がしを `motorSpeedCallback` から `W/S` に変換します。
-  - 左右の手旋回を `attitudeCallback` の yaw 差分から `A/D` に変換します。
+  - 前後の傾きを `attitudeCallback` の `pitch(y)` から `W/S` に変換します。
+  - 左右の傾きを `attitudeCallback` の `roll(x)` から `A/D` に変換します。
   - `GetVirtualKey(KeyCode)`、`Horizontal`、`Vertical` を公開します。
+  - 傾きが続く間は `W/A/S/D` の状態も継続します。
 - `ToioWasdDemoMover.cs`
   - Unity オブジェクトを `WASD` と同じ感覚で動かす最小デモです。
 
@@ -42,21 +43,38 @@ float horizontal = toioInput.Horizontal;
 float vertical = toioInput.Vertical;
 ```
 
+`W/A/S/D` の押下状態をそのまま使いたい場合は、次のようにも扱えます。
+
+```csharp
+bool moveForward = toioInput.WPressed;
+bool moveLeft = toioInput.APressed;
+```
+
+### 今日の実験につながる使い方
+
+- `ToioWasdInput` は Unity 内の仮想 WASD だけでなく、外部アプリへキー送出する実験の入力源としても使えます。
+- `Assets/Experiments/ToioLeftHandLab/WindowsExternalWasdOutput.cs` と組み合わせると、Windows 上のメモ帳などへ `W/A/S/D` を送れます。
+- `TapRepeat` なら `WWWWAAASSD` のような連続文字入力向けです。
+- `HoldWhileTilted` なら Minecraft のような「押しっぱなし移動」検証につなげやすいです。
+
 ### 調整ポイント
 
-- `Move Speed Threshold`
-  - 前進 / 後退とみなす最低速度です。
-- `Straight Diff Threshold`
-  - 左右の車輪差がこの値を超えると、前後入力ではなく旋回寄りとして無視します。
-- `Turn Velocity Threshold Deg Per Sec`
-  - 左右旋回とみなす yaw 角速度の閾値です。
+- `Forward Backward Tilt Threshold Deg`
+  - `W/S` とみなす `pitch(y)` のしきい値です。
+- `Left Right Tilt Threshold Deg`
+  - `A/D` とみなす `roll(x)` のしきい値です。
 - `Invert Forward Backward`
   - 前後が逆ならオンにします。
 - `Invert Turn Direction`
   - A / D が逆ならオンにします。
+- `Hold Seconds`
+  - 一時的な仮想キー注入の保持時間です。
+- `Use Keyboard Fallback`
+  - 物理キーボードの `W/A/S/D` も併用したいときに使います。
 
 ### 前提と制約
 
-- マットなし平面では絶対座標は取れないため、前後判定はモーター速度、左右判定は姿勢角の変化に依存します。
-- 床面が滑りやすすぎるとモーター速度が十分に出ず、前後判定が弱くなることがあります。
-- 姿勢角は BLE バージョンに応じて `PreciseEulers` から自動的に利用可能な形式へ寄るため、古い実装では旋回判定がやや粗くなる場合があります。
+- 現在の WASD 判定は姿勢角ベースです。
+- `W/S` は `pitch(y)`、`A/D` は `roll(x)` を使います。
+- 傾きがしきい値未満に戻ると、対応する入力状態はオフになります。
+- 実機の置き方や手のクセでしきい値調整が必要になる場合があります。
