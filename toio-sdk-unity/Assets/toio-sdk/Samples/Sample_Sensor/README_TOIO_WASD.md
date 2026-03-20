@@ -2,6 +2,10 @@
 
 `Assets/toio-sdk/Samples/Sample_Sensor` を土台に、toio コア キューブ 1 台を `W/A/S/D` 相当の入力源として扱うための追加スクリプトです。
 
+### 関連ハッシュタグ
+
+- `toio左手ガジェット化計画` の共有タグ: `#左手運用試験区画` `#ToioJetHand`
+
 ### この構成を選ぶ理由
 
 - `Sample_Sensor` は 1 台接続の土台がすでにあります。
