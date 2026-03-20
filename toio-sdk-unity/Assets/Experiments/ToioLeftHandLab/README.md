@@ -1,6 +1,6 @@
-## Toio Left Hand Lab ver1.2
+## Toio Left Hand Lab ver1.3
 
-toio コア キューブ 1 台を、左手用の入力ガジェットとして試すための Unity 実験環境です。
+toio コア キューブ 1 台または 2 台を、左手用の入力ガジェットとして試すための Unity 実験環境です。
 
 ### ハッシュタグ
 
@@ -70,12 +70,27 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - `Minecraft` を含む前景ウィンドウにだけ `W/A/S/D` を送出
 - `A/D` の左右判定は現在の実機向きに合わせて補正済み
 
+### ver1.3 記録
+
+- 記録日: 2026-03-20
+- バージョン名: `ver1.3`
+- 状況: `ver1.3` の取り組みを開始
+- 方針: 2 台接続や `twin stick mode` を含む次段階の実験を進める版として着手
+- 備考: 途中経過の詳細仕様は、現時点では本 README に固定しない
+
+### ver1.3 仕様
+
+- `ver1.3` は着手段階
+- `ver1.2` の 1 台入力系を土台に、2 台接続や新しい操作モードを検討していく
+- 具体仕様は確定後に別途整理して追記する
+
 ### Minecraft 向け設定
 
 - `WindowsExternalWasdOutput` は、前景ウィンドウのタイトルに指定文字列が含まれるときだけ送出できるようにしてあります。
 - 既定シーンでは `Output Mode = HoldWhileTilted`、`Require Foreground Window Title Match = On`、`Required Foreground Window Title Fragment = Minecraft` です。
 - たとえば `Minecraft 1.21.11 - シングルプレイ` のようなタイトルでも、`Minecraft` 部分一致で反応します。
 - Minecraft 以外へ誤送信したくない場合は、このタイトル絞り込みを維持してください。
+- `ver1.3` では追加操作系の検討を開始していますが、確定仕様は別途整理予定です。
 
 ### 開き方
 
@@ -84,15 +99,13 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 3. 再生して `Connect` を押します。
 4. Minecraft で検証する場合は、Minecraft ウィンドウを前面にします。
 5. タイトル断片が異なる場合は、`WindowsExternalWasdOutput` の `Required Foreground Window Title Fragment` を調整します。
-6. toio を傾けると、Minecraft 側へ `W/A/S/D` が送られます。
-7. メモ帳で再確認したい場合は、タイトル絞り込みをオフにするか、断片をメモ帳のタイトルに合わせます。
+6. `ver1.2` 時点では `W/A/S/D` を送れます。
 
 ### シーンの見方
 
-- 画面左側の各ラベルに `W/A/S/D` の状態が出ます。
-- `Vertical Axis` が `W/S`
-- `Horizontal Axis` が `A/D`
-- 画面下部のテキストボックスに、検出された `W/A/S/D` が順に入力されます。
+- 画面左側の各ラベルに、選択中モードに応じたキー状態が出ます。
+- `1stick mode` では `Vertical Axis = W/S`, `Horizontal Axis = A/D`
+- 画面下部のテキストボックスに、検出されたキーが順に入力されます。
 - 画面下部テキストに実験条件と現在の補足が出ます。
 - 外部入力を試す場合は、Unity の Play を維持したまま対象アプリを前面にします。
 
@@ -103,9 +116,9 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
   - `A/D` は `attitudeCallback` の roll
 - `ToioLeftHandLabController`
   - 既存の `Sample_Sensor` UI を流用して状態を表示
-  - `W/A/S/D` 判定を受けてシーン内の InputField に文字を追記
+  - `ver1.3` に向けた拡張を進行中
 - `WindowsExternalWasdOutput`
-  - Windows の前景ウィンドウへ `W/A/S/D` を送る実験用コンポーネント
+  - Windows の前景ウィンドウへキーを送る実験用コンポーネント
   - `TapRepeat` と `HoldWhileTilted` を切り替え可能
   - 前景ウィンドウタイトルの部分一致で送出先を絞り込める
   - 送出はゲーム入力で通りやすいスキャンコード優先
@@ -113,7 +126,7 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 
 ### 前提
 
-- これはまず `Unity 内で使う仮想キー入力` を土台にしつつ、ver1.1 で Windows 外部出力、ver1.2 で Minecraft 向け調整まで進めた実験環境です。
+- これはまず `Unity 内で使う仮想キー入力` を土台にしつつ、ver1.1 で Windows 外部出力、ver1.2 で Minecraft 向け調整、ver1.3 で次段階の実験に着手した実験環境です。
 - `x=roll`, `y=pitch`, `z=yaw` として扱っています。
 - 現在の割り当ては `A/D = roll(x)`, `W/S = pitch(y)` です。
 - Windows 外部キー送出は `Unity Editor` / `Windows Standalone` を前提にしています。
@@ -126,3 +139,4 @@ toio コア キューブ 1 台を、左手用の入力ガジェットとして�
 - `ver1.0` は Unity 内の仮想 WASD 確認版です。
 - `ver1.1` はその土台の上で、Windows 外部入力まで伸ばした試作版です。
 - `ver1.2` は Minecraft の前景タイトル指定、スキャンコード優先送出、`A/D` 調整まで反映した実用確認版です。
+- `ver1.3` は 2 台接続や新モードを含む次段階の実験に着手した版です。

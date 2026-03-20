@@ -1,16 +1,43 @@
+using System.Linq;
+using System.Text;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
-using System.Text;
+using toio;
 
 namespace toio.Experiments.ToioLeftHandLab
 {
     public class ToioLeftHandLabController : MonoBehaviour
     {
-        private const string VersionLabel = "ver1.2";
+        private const string VersionLabel = "ver1.3";
 
+        private enum ControlMode
+        {
+            OneStick = 0,
+            TwinStick = 1
+        }
+
+        private enum HorizontalTiltState
+        {
+            Left = -1,
+            Neutral = 0,
+            Right = 1
+        }
+
+        [Header("Single Stick")]
         [SerializeField] private toio.Samples.Sample_Sensor.ToioWasdInput inputSource;
         [SerializeField] private bool showKeyboardFallbackHint = true;
+
+        [Header("Twin Stick")]
+        [SerializeField] private ControlMode selectedMode = ControlMode.OneStick;
+        [SerializeField] private float twinTiltThresholdDeg = 8f;
+        [SerializeField] private bool twinInvertTurnDirection = true;
+        [SerializeField] private int twinAttitudeIntervalMs = 50;
+        [SerializeField] private float twinMotionSensorRefreshSeconds = 0.5f;
+        [SerializeField] private float shiftHoldSeconds = 2f;
+        [SerializeField] private float ctrlHoldSeconds = 2f;
+
+        [Header("UI")]
         [SerializeField] private int maxLogLength = 64;
 
         private Text textBattery;
@@ -30,10 +57,74 @@ namespace toio.Experiments.ToioLeftHandLab
         private Text keyLogLabel;
         private readonly StringBuilder keyLogBuilder = new StringBuilder();
 
-        private string footerMessage = "Toio Left Hand Lab ver1.2. W/S uses pitch tilt. A/D uses roll tilt. Minecraft-targeted external output is ready.";
+        private Button connectButton;
+        private Text connectButtonLabel;
+        private Button oneStickModeButton;
+        private Button twinStickModeButton;
+        private Text modeHintLabel;
+
+        private Cube leftTwinCube;
+        private Cube rightTwinCube;
+        private string leftTwinListenerKey;
+        private string rightTwinListenerKey;
+        private Vector3 leftTwinEulers;
+        private Vector3 rightTwinEulers;
+        private Cube.PoseType leftTwinPose;
+        private Cube.PoseType rightTwinPose;
+        private bool leftTwinButtonPressed;
+        private bool rightTwinButtonPressed;
+        private HorizontalTiltState leftTwinTiltState = HorizontalTiltState.Neutral;
+        private HorizontalTiltState rightTwinTiltState = HorizontalTiltState.Neutral;
+        private bool twinWActive;
+        private bool twinAActive;
+        private bool twinSActive;
+        private bool twinDActive;
+        private bool twinSpaceActive;
+        private bool lastTwinAActive;
+        private bool lastTwinDActive;
+        private bool lastTwinWActive;
+        private bool lastTwinSActive;
+        private bool lastTwinCtrlActive;
+        private bool isConnecting;
+        private float nextTwinMotionSensorRequestAt;
+
+        private string footerMessage =
+            "Toio Left Hand Lab ver1.3. Twin flow: connect two upright cubes together. Both cubes use the same WASD rules as 1stick, and either button shows LeftCtrl.";
+
+        public bool IsConnected
+        {
+            get
+            {
+                if (selectedMode == ControlMode.TwinStick)
+                {
+                    return AreTwinCubesConnected;
+                }
+
+                return inputSource != null && inputSource.IsConnected;
+            }
+        }
+
+        public bool WPressed => (selectedMode == ControlMode.OneStick && inputSource != null) ? inputSource.WPressed : twinWActive;
+        public bool APressed => (selectedMode == ControlMode.OneStick && inputSource != null) ? inputSource.APressed : twinAActive;
+        public bool SPressed => (selectedMode == ControlMode.OneStick && inputSource != null) ? inputSource.SPressed : twinSActive;
+        public bool DPressed => (selectedMode == ControlMode.OneStick && inputSource != null) ? inputSource.DPressed : twinDActive;
+        public bool SpacePressed => false;
+        public bool LeftShiftPressed => false;
+        public bool LeftControlPressed => selectedMode == ControlMode.TwinStick && (leftTwinButtonPressed || rightTwinButtonPressed);
+
+        private bool AreTwinCubesConnected =>
+            leftTwinCube != null && leftTwinCube.isConnected &&
+            rightTwinCube != null && rightTwinCube.isConnected;
+
+        private bool HasAnyTwinCubeConnection =>
+            (leftTwinCube != null && leftTwinCube.isConnected) ||
+            (rightTwinCube != null && rightTwinCube.isConnected);
 
         private void Awake()
         {
+            leftTwinListenerKey = $"{nameof(ToioLeftHandLabController)}_TwinLeft_{GetInstanceID()}";
+            rightTwinListenerKey = $"{nameof(ToioLeftHandLabController)}_TwinRight_{GetInstanceID()}";
+
             if (inputSource == null)
             {
                 inputSource = GetComponent<toio.Samples.Sample_Sensor.ToioWasdInput>();
@@ -44,24 +135,44 @@ namespace toio.Experiments.ToioLeftHandLab
                 inputSource.VirtualKeyInjected += OnVirtualKeyInjected;
             }
 
-            this.textBattery = FindText("TextBattery");
-            this.textCollision = FindText("TextCollision");
-            this.textFlat = FindText("TextFlat");
-            this.textPositionID = FindText("TextPositionID");
-            this.textStandardID = FindText("TextStandardID");
-            this.textButton = FindText("TextButton");
-            this.textAngle = FindText("TextAngle");
-            this.textDoubleTap = FindText("TextDoubleTap");
-            this.textPose = FindText("TextPose");
-            this.textShake = FindText("TextShake");
-            this.textSpeed = FindText("TextSpeed");
-            this.textMag = FindText("TextMag");
-            this.textAttitude = FindText("TextAttitude");
+            textBattery = FindText("TextBattery");
+            textCollision = FindText("TextCollision");
+            textFlat = FindText("TextFlat");
+            textPositionID = FindText("TextPositionID");
+            textStandardID = FindText("TextStandardID");
+            textButton = FindText("TextButton");
+            textAngle = FindText("TextAngle");
+            textDoubleTap = FindText("TextDoubleTap");
+            textPose = FindText("TextPose");
+            textShake = FindText("TextShake");
+            textSpeed = FindText("TextSpeed");
+            textMag = FindText("TextMag");
+            textAttitude = FindText("TextAttitude");
+
+            var connectObject = GameObject.Find("ButtonConnect");
+            if (connectObject != null)
+            {
+                connectButton = connectObject.GetComponent<Button>();
+                connectButtonLabel = connectObject.GetComponentInChildren<Text>();
+            }
+
             EnsureKeyLogUi();
+            EnsureModeSelectionUi();
+            UpdateModeSelectionUi();
         }
 
         private void Start()
         {
+            RefreshTexts();
+        }
+
+        private void Update()
+        {
+            if (selectedMode == ControlMode.TwinStick)
+            {
+                UpdateTwinStickState();
+            }
+
             RefreshTexts();
         }
 
@@ -71,53 +182,132 @@ namespace toio.Experiments.ToioLeftHandLab
             {
                 inputSource.VirtualKeyInjected -= OnVirtualKeyInjected;
             }
+
+            RemoveTwinListeners();
         }
 
-        private void Update()
+        public bool GetVirtualKey(KeyCode keyCode)
         {
-            RefreshTexts();
+            switch (keyCode)
+            {
+                case KeyCode.W:
+                    return WPressed;
+                case KeyCode.A:
+                    return APressed;
+                case KeyCode.S:
+                    return SPressed;
+                case KeyCode.D:
+                    return DPressed;
+                case KeyCode.Space:
+                    return SpacePressed;
+                case KeyCode.LeftShift:
+                    return LeftShiftPressed;
+                case KeyCode.LeftControl:
+                    return LeftControlPressed;
+                default:
+                    return false;
+            }
+        }
+
+        public void OnSelectOneStickMode()
+        {
+            TrySelectMode(ControlMode.OneStick);
+        }
+
+        public void OnSelectTwinStickMode()
+        {
+            TrySelectMode(ControlMode.TwinStick);
         }
 
         public async void OnBtnConnect()
         {
-            if (inputSource == null)
+            if (isConnecting)
             {
+                footerMessage = "A connection is already in progress.";
                 return;
             }
 
-            footerMessage = "Connecting to nearest toio core cube...";
-            RefreshTexts();
-            await inputSource.Connect();
-            footerMessage = "Connected. ver1.2 is ready. Tilt forward/back for W/S, tilt left/right for A/D.";
+            isConnecting = true;
+            UpdateModeSelectionUi();
+
+            try
+            {
+                if (selectedMode == ControlMode.OneStick)
+                {
+                    await ConnectOneStickMode();
+                }
+                else
+                {
+                    await ConnectTwinStickMode();
+                }
+            }
+            finally
+            {
+                isConnecting = false;
+                UpdateModeSelectionUi();
+                RefreshTexts();
+            }
         }
 
         public void Forward()
         {
+            if (selectedMode != ControlMode.OneStick)
+            {
+                footerMessage = "Debug arrow buttons are reserved for 1stick mode in ver1.3.";
+                return;
+            }
+
             inputSource?.InjectVirtualKey(KeyCode.W);
             footerMessage = "Debug inject: W";
         }
 
         public void Backward()
         {
+            if (selectedMode != ControlMode.OneStick)
+            {
+                footerMessage = "Debug arrow buttons are reserved for 1stick mode in ver1.3.";
+                return;
+            }
+
             inputSource?.InjectVirtualKey(KeyCode.S);
             footerMessage = "Debug inject: S";
         }
 
         public void TurnRight()
         {
+            if (selectedMode != ControlMode.OneStick)
+            {
+                footerMessage = "Debug arrow buttons are reserved for 1stick mode in ver1.3.";
+                return;
+            }
+
             inputSource?.InjectVirtualKey(KeyCode.D);
             footerMessage = "Debug inject: D";
         }
 
         public void TurnLeft()
         {
+            if (selectedMode != ControlMode.OneStick)
+            {
+                footerMessage = "Debug arrow buttons are reserved for 1stick mode in ver1.3.";
+                return;
+            }
+
             inputSource?.InjectVirtualKey(KeyCode.A);
             footerMessage = "Debug inject: A";
         }
 
         public void Stop()
         {
-            inputSource?.ClearVirtualKeys();
+            if (selectedMode == ControlMode.OneStick)
+            {
+                inputSource?.ClearVirtualKeys();
+            }
+            else
+            {
+                ClearTwinTransientState();
+            }
+
             ClearInputLog();
             footerMessage = "Virtual key state cleared.";
         }
@@ -129,10 +319,349 @@ namespace toio.Experiments.ToioLeftHandLab
 
         public void OnSwitchAttitude()
         {
-            footerMessage = "Attitude sensing is always used here for A/D detection.";
+            footerMessage = selectedMode == ControlMode.OneStick
+                ? "Attitude sensing is always used here for A/D detection."
+                : "Twin stick mode uses left/right tilt from both cubes.";
+        }
+
+        private void TrySelectMode(ControlMode mode)
+        {
+            if (selectedMode == mode)
+            {
+                footerMessage = $"Mode already selected: {GetModeLabel(mode)}.";
+                UpdateModeSelectionUi();
+                return;
+            }
+
+            if (isConnecting || IsConnected || HasAnyTwinCubeConnection)
+            {
+                footerMessage = "Change the mode before connecting. Reconnect after switching modes.";
+                return;
+            }
+
+            selectedMode = mode;
+            footerMessage = mode == ControlMode.OneStick
+                ? "1stick mode selected. Press Connect to use the current single-cube setup."
+                : "twin stick mode selected. Keep two cubes upright, then press Connect. Both cubes use the same tilt rules as 1stick, and either button shows LeftCtrl.";
+            UpdateModeSelectionUi();
+            RefreshTexts();
+        }
+
+        private async UniTask ConnectOneStickMode()
+        {
+            if (inputSource == null)
+            {
+                footerMessage = "Single-stick input source is missing.";
+                return;
+            }
+
+            footerMessage = "Connecting to the nearest toio core cube for 1stick mode...";
+            RefreshTexts();
+            await inputSource.Connect();
+            footerMessage = "Connected. ver1.3 1stick mode is ready. Tilt forward/back for W/S, tilt left/right for A/D.";
+        }
+
+        private async UniTask ConnectTwinStickMode()
+        {
+            if (inputSource == null)
+            {
+                footerMessage = "Base input source is missing, so twin stick mode cannot start.";
+                return;
+            }
+
+            if (inputSource.IsConnected)
+            {
+                footerMessage = "1stick mode is already connected. Restart the scene before switching to twin stick mode.";
+                return;
+            }
+
+            if (AreTwinCubesConnected)
+            {
+                footerMessage = "Twin stick mode is already connected.";
+                return;
+            }
+
+            if (!HasAnyTwinCubeConnection)
+            {
+                RemoveTwinListeners();
+                ClearTwinTransientState();
+            }
+
+            if (!AreTwinCubesConnected)
+            {
+                leftTwinCube = null;
+                rightTwinCube = null;
+                footerMessage = "Connecting two cubes together. This now follows the multi-cube sample flow used in Sample_Motor.";
+                RefreshTexts();
+                var cubes = await ConnectTwinCubePair();
+                if (cubes == null || cubes.Length < 2)
+                {
+                    footerMessage = "Twin connection failed. Two connected cubes were not confirmed. Please keep two cubes nearby and press Connect again.";
+                    return;
+                }
+
+                leftTwinCube = cubes[0];
+                rightTwinCube = cubes[1];
+                await UniTask.WhenAll(
+                    RegisterTwinCube(leftTwinCube, leftTwinListenerKey, OnLeftTwinAttitude, OnLeftTwinButton, OnLeftTwinPose),
+                    RegisterTwinCube(rightTwinCube, rightTwinListenerKey, OnRightTwinAttitude, OnRightTwinButton, OnRightTwinPose)
+                );
+                RefreshTwinPoseState(forceSensorRequest: true);
+            }
+
+            footerMessage =
+                $"Connected. Twin upright mode is ready. Cube1={GetCubeDebugName(leftTwinCube, "cube1")} Cube2={GetCubeDebugName(rightTwinCube, "cube2")}. Cube1/Cube2 follow the sample multi-cube scan order. Both cubes use the same tilt rules as 1stick. Button -> LeftCtrl.";
+        }
+
+        private async UniTask<Cube[]> ConnectTwinCubePair()
+        {
+            var connectType = inputSource.ConnectType;
+            var peripherals = await new CubeScanner(connectType).NearScan(2, 20f);
+            if (peripherals == null || peripherals.Length < 2)
+            {
+                return null;
+            }
+
+            var cubes = await new CubeConnecter(connectType).Connect(peripherals);
+            if (cubes == null)
+            {
+                return null;
+            }
+
+            return cubes
+                .Where(cube => cube != null && cube.isConnected)
+                .GroupBy(cube => cube.addr)
+                .Select(group => group.First())
+                .Take(2)
+                .ToArray();
+        }
+
+        private async UniTask RegisterTwinCube(
+            Cube cube,
+            string listenerKey,
+            System.Action<Cube> attitudeHandler,
+            System.Action<Cube> buttonHandler,
+            System.Action<Cube> poseHandler
+        )
+        {
+            if (cube == null)
+            {
+                return;
+            }
+
+            cube.attitudeCallback.RemoveListener(listenerKey);
+            cube.buttonCallback.RemoveListener(listenerKey);
+            cube.poseCallback.RemoveListener(listenerKey);
+
+            cube.attitudeCallback.AddListener(listenerKey, attitudeHandler);
+            cube.buttonCallback.AddListener(listenerKey, buttonHandler);
+            cube.poseCallback.AddListener(listenerKey, poseHandler);
+            await cube.ConfigAttitudeSensor(
+                Cube.AttitudeFormat.Eulers,
+                twinAttitudeIntervalMs,
+                Cube.AttitudeNotificationType.OnChanged
+            );
+            cube.RequestAttitudeSensor(Cube.AttitudeFormat.Eulers);
+            cube.RequestMotionSensor();
+            await UniTask.Delay(100);
+        }
+
+        private void OnLeftTwinAttitude(Cube cube)
+        {
+            leftTwinEulers = cube.eulers;
+        }
+
+        private void OnRightTwinAttitude(Cube cube)
+        {
+            rightTwinEulers = cube.eulers;
+        }
+
+        private void OnLeftTwinPose(Cube cube)
+        {
+            leftTwinPose = cube.pose;
+        }
+
+        private void OnRightTwinPose(Cube cube)
+        {
+            rightTwinPose = cube.pose;
+        }
+
+        private void OnLeftTwinButton(Cube cube)
+        {
+            leftTwinButtonPressed = cube.isPressed;
+        }
+
+        private void OnRightTwinButton(Cube cube)
+        {
+            rightTwinButtonPressed = cube.isPressed;
+        }
+
+        private void UpdateTwinStickState()
+        {
+            if (!AreTwinCubesConnected)
+            {
+                twinWActive = false;
+                twinAActive = false;
+                twinSActive = false;
+                twinDActive = false;
+                twinSpaceActive = false;
+                leftTwinTiltState = HorizontalTiltState.Neutral;
+                rightTwinTiltState = HorizontalTiltState.Neutral;
+                return;
+            }
+
+            RefreshTwinPoseState();
+            var leftHorizontal = EvaluateHorizontalAxis(leftTwinEulers);
+            var rightHorizontal = EvaluateHorizontalAxis(rightTwinEulers);
+            var leftVertical = EvaluateVerticalAxis(leftTwinEulers);
+            var rightVertical = EvaluateVerticalAxis(rightTwinEulers);
+
+            leftTwinTiltState = ToHorizontalTiltState(leftHorizontal);
+            rightTwinTiltState = ToHorizontalTiltState(rightHorizontal);
+
+            var combinedHorizontal = Mathf.Clamp(leftHorizontal + rightHorizontal, -1, 1);
+            var combinedVertical = Mathf.Clamp(leftVertical + rightVertical, -1, 1);
+
+            twinWActive = combinedVertical > 0;
+            twinSActive = combinedVertical < 0;
+            twinDActive = combinedHorizontal > 0;
+            twinAActive = combinedHorizontal < 0;
+            twinSpaceActive = false;
+
+            if (LeftControlPressed && !lastTwinCtrlActive)
+            {
+                footerMessage = "Twin button OK: LeftCtrl";
+            }
+
+            UpdateTwinActionFooter();
+        }
+
+        private int EvaluateHorizontalAxis(Vector3 eulers)
+        {
+            var threshold = inputSource != null ? inputSource.LeftRightTiltThresholdDeg : twinTiltThresholdDeg;
+            if (Mathf.Abs(eulers.x) < threshold)
+            {
+                return 0;
+            }
+
+            var turnRight = eulers.x > 0f;
+            var invert = inputSource != null ? inputSource.InvertTurnDirection : twinInvertTurnDirection;
+            if (invert)
+            {
+                turnRight = !turnRight;
+            }
+
+            return turnRight ? 1 : -1;
+        }
+
+        private int EvaluateVerticalAxis(Vector3 eulers)
+        {
+            var threshold = inputSource != null ? inputSource.ForwardBackwardTiltThresholdDeg : twinTiltThresholdDeg;
+            if (Mathf.Abs(eulers.y) < threshold)
+            {
+                return 0;
+            }
+
+            var forward = eulers.y < 0f;
+            var invert = inputSource != null ? inputSource.InvertForwardBackward : true;
+            if (invert)
+            {
+                forward = !forward;
+            }
+
+            return forward ? 1 : -1;
+        }
+
+        private static HorizontalTiltState ToHorizontalTiltState(int axis)
+        {
+            if (axis > 0)
+            {
+                return HorizontalTiltState.Right;
+            }
+
+            if (axis < 0)
+            {
+                return HorizontalTiltState.Left;
+            }
+
+            return HorizontalTiltState.Neutral;
+        }
+
+        private void UpdateTwinActionFooter()
+        {
+            TrackTwinActionEdge(twinWActive, ref lastTwinWActive, "Twin stick action: W");
+            TrackTwinActionEdge(twinAActive, ref lastTwinAActive, "Twin stick action: A");
+            TrackTwinActionEdge(twinSActive, ref lastTwinSActive, "Twin stick action: S");
+            TrackTwinActionEdge(twinDActive, ref lastTwinDActive, "Twin stick action: D");
+            TrackTwinActionEdge(LeftControlPressed, ref lastTwinCtrlActive, "Twin stick action: LeftCtrl");
+        }
+
+        private void TrackTwinActionEdge(bool isActive, ref bool previousState, string message)
+        {
+            if (isActive && !previousState)
+            {
+                footerMessage = message;
+            }
+
+            previousState = isActive;
+        }
+
+        private void ClearTwinTransientState()
+        {
+            leftTwinEulers = Vector3.zero;
+            rightTwinEulers = Vector3.zero;
+            leftTwinPose = 0;
+            rightTwinPose = 0;
+            nextTwinMotionSensorRequestAt = 0f;
+            leftTwinButtonPressed = false;
+            rightTwinButtonPressed = false;
+            leftTwinTiltState = HorizontalTiltState.Neutral;
+            rightTwinTiltState = HorizontalTiltState.Neutral;
+            twinWActive = false;
+            twinAActive = false;
+            twinSActive = false;
+            twinDActive = false;
+            twinSpaceActive = false;
+            lastTwinWActive = false;
+            lastTwinAActive = false;
+            lastTwinSActive = false;
+            lastTwinDActive = false;
+            lastTwinCtrlActive = false;
+        }
+
+        private void RemoveTwinListeners()
+        {
+            RemoveTwinListeners(leftTwinCube);
+            RemoveTwinListeners(rightTwinCube);
+        }
+
+        private void RemoveTwinListeners(Cube cube)
+        {
+            if (cube == null)
+            {
+                return;
+            }
+
+            cube.attitudeCallback.RemoveListener(leftTwinListenerKey);
+            cube.attitudeCallback.RemoveListener(rightTwinListenerKey);
+            cube.buttonCallback.RemoveListener(leftTwinListenerKey);
+            cube.buttonCallback.RemoveListener(rightTwinListenerKey);
+            cube.poseCallback.RemoveListener(leftTwinListenerKey);
+            cube.poseCallback.RemoveListener(rightTwinListenerKey);
         }
 
         private void RefreshTexts()
+        {
+            if (selectedMode == ControlMode.TwinStick)
+            {
+                RefreshTwinStickTexts();
+                return;
+            }
+
+            RefreshOneStickTexts();
+        }
+
+        private void RefreshOneStickTexts()
         {
             if (inputSource == null)
             {
@@ -143,16 +672,16 @@ namespace toio.Experiments.ToioLeftHandLab
             var horizontal = inputSource.Horizontal;
             var vertical = inputSource.Vertical;
 
-            SetText(textBattery, connected ? "Connect: Connected" : "Connect: Not connected");
+            SetText(textBattery, connected ? "Connect: Connected (1stick)" : "Connect: Not connected (1stick)");
             SetText(textFlat, $"W: {(inputSource.WPressed ? "ON" : "off")}");
             SetText(textButton, $"S: {(inputSource.SPressed ? "ON" : "off")}");
             SetText(textCollision, $"A: {(inputSource.APressed ? "ON" : "off")}");
             SetText(textDoubleTap, $"D: {(inputSource.DPressed ? "ON" : "off")}");
             SetText(textPose, $"Vertical Axis: {vertical:+0;-0;0}");
             SetText(textShake, $"Horizontal Axis: {horizontal:+0;-0;0}");
-            SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel}.");
-            SetText(textStandardID, "Detected keys are typed into the on-screen text box. W/S uses pitch, A/D uses roll.");
-            SetText(textAngle, connected ? "Cube: ready" : "Press Connect to start.");
+            SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel} ({GetModeLabel(selectedMode)}).");
+            SetText(textStandardID, "1stick: W/S uses pitch, A/D uses roll.");
+            SetText(textAngle, connected ? "Cube: ready" : "Select a mode, then press Connect.");
             SetText(textSpeed, $"Speed raw: L={inputSource.LastLeftSpeed} R={inputSource.LastRightSpeed}");
             var e = inputSource.LastEulers;
             SetText(textMag, $"Euler raw: x={e.x:F1} y={e.y:F1} z={e.z:F1}  (A/D uses x, W/S uses y)");
@@ -163,6 +692,248 @@ namespace toio.Experiments.ToioLeftHandLab
             {
                 keyLogLabel.text = $"toio key input box {VersionLabel}";
             }
+        }
+
+        private void RefreshTwinStickTexts()
+        {
+            SetText(textBattery, AreTwinCubesConnected ? "Connect: Connected (twin stick)" : "Connect: Waiting for twin cube pair");
+            SetText(textFlat, $"A: {(twinAActive ? "ON" : "off")}");
+            SetText(textButton, $"LeftCtrl: {(LeftControlPressed ? "ON" : "off")}");
+            SetText(textCollision, $"Cube1 {GetCubeDebugName(leftTwinCube, "not connected")}: H={FormatTiltState(leftTwinTiltState)} V={FormatAxisState(EvaluateVerticalAxis(leftTwinEulers))} Btn={(leftTwinButtonPressed ? "ON" : "off")}");
+            SetText(textDoubleTap, $"Cube2 {GetCubeDebugName(rightTwinCube, "not connected")}: H={FormatTiltState(rightTwinTiltState)} V={FormatAxisState(EvaluateVerticalAxis(rightTwinEulers))} Btn={(rightTwinButtonPressed ? "ON" : "off")}");
+            SetText(textPose, $"W: {(twinWActive ? "ON" : "off")}");
+            SetText(textShake, $"S: {(twinSActive ? "ON" : "off")}");
+            SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel} ({GetModeLabel(selectedMode)}).");
+            SetText(textStandardID, "TwinStick upright mode: both cubes use the same tilt rules as 1stick. W/S uses pitch, A/D uses roll, and button shows LeftCtrl.");
+            SetText(textAngle, GetTwinSetupStatusText());
+            SetText(textSpeed, "Mode: TwinStick  Upright  No arm required");
+            SetText(
+                textMag,
+                $"Euler raw: L x={leftTwinEulers.x:F1} y={leftTwinEulers.y:F1} | R x={rightTwinEulers.x:F1} y={rightTwinEulers.y:F1}"
+            );
+            SetText(textAttitude, footerMessage);
+            if (keyLogLabel != null)
+            {
+                keyLogLabel.text = $"toio key input box {VersionLabel}";
+            }
+        }
+
+        private void EnsureModeSelectionUi()
+        {
+            if (oneStickModeButton != null && twinStickModeButton != null)
+            {
+                return;
+            }
+
+            var canvasObject = GameObject.Find("Canvas");
+            if (canvasObject == null)
+            {
+                return;
+            }
+
+            var canvasTransform = canvasObject.transform as RectTransform;
+            if (canvasTransform == null)
+            {
+                return;
+            }
+
+            var existingPanel = GameObject.Find("ToioModePanel");
+            if (existingPanel != null)
+            {
+                oneStickModeButton = GameObject.Find("ModeButtonOneStick")?.GetComponent<Button>();
+                twinStickModeButton = GameObject.Find("ModeButtonTwinStick")?.GetComponent<Button>();
+                modeHintLabel = GameObject.Find("ToioModeHint")?.GetComponent<Text>();
+                return;
+            }
+
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var panel = CreateUiObject("ToioModePanel", canvasTransform);
+            ConfigureRect(panel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(1180f, 84f));
+            var panelImage = panel.gameObject.AddComponent<Image>();
+            panelImage.color = new Color(0.08f, 0.08f, 0.08f, 0.82f);
+
+            var titleRect = CreateUiObject("ToioModeHint", panel);
+            ConfigureRect(titleRect, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(-24f, 22f));
+            modeHintLabel = titleRect.gameObject.AddComponent<Text>();
+            modeHintLabel.font = font;
+            modeHintLabel.fontSize = 22;
+            modeHintLabel.alignment = TextAnchor.MiddleLeft;
+            modeHintLabel.color = Color.white;
+
+            oneStickModeButton = CreateModeButton(
+                "ModeButtonOneStick",
+                panel,
+                font,
+                "1stick mode",
+                new Vector2(-250f, 10f),
+                OnSelectOneStickMode
+            );
+            twinStickModeButton = CreateModeButton(
+                "ModeButtonTwinStick",
+                panel,
+                font,
+                "twin stick mode",
+                new Vector2(250f, 10f),
+                OnSelectTwinStickMode
+            );
+        }
+
+        private Button CreateModeButton(
+            string name,
+            RectTransform parent,
+            Font font,
+            string label,
+            Vector2 anchoredPosition,
+            UnityEngine.Events.UnityAction onClick
+        )
+        {
+            var rect = CreateUiObject(name, parent);
+            ConfigureRect(rect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPosition, new Vector2(380f, 42f));
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = new Color(0.18f, 0.18f, 0.18f, 0.96f);
+
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(onClick);
+
+            var labelRect = CreateUiObject($"{name}_Label", rect);
+            ConfigureRect(labelRect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            var text = labelRect.gameObject.AddComponent<Text>();
+            text.font = font;
+            text.fontSize = 22;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.color = Color.white;
+            text.raycastTarget = false;
+            text.text = label;
+
+            return button;
+        }
+
+        private void UpdateModeSelectionUi()
+        {
+            SetModeButtonVisual(oneStickModeButton, selectedMode == ControlMode.OneStick);
+            SetModeButtonVisual(twinStickModeButton, selectedMode == ControlMode.TwinStick);
+
+            if (modeHintLabel != null)
+            {
+                modeHintLabel.text = $"Mode Select: {GetModeLabel(selectedMode)}";
+            }
+
+            if (connectButton != null)
+            {
+                connectButton.interactable = !isConnecting;
+            }
+
+            if (connectButtonLabel != null)
+            {
+                connectButtonLabel.text = isConnecting
+                    ? "Connecting..."
+                    : selectedMode == ControlMode.OneStick ? "Connect 1stick" : "Connect twin stick";
+            }
+        }
+
+        private static void SetModeButtonVisual(Button button, bool isSelected)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            var image = button.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = isSelected
+                    ? new Color(0.16f, 0.42f, 0.76f, 0.96f)
+                    : new Color(0.18f, 0.18f, 0.18f, 0.96f);
+            }
+        }
+
+        private static string GetModeLabel(ControlMode mode)
+        {
+            return mode == ControlMode.OneStick ? "1stick mode" : "twin stick mode";
+        }
+
+        private static string FormatTiltState(HorizontalTiltState state)
+        {
+            switch (state)
+            {
+                case HorizontalTiltState.Left:
+                    return "Left";
+                case HorizontalTiltState.Right:
+                    return "Right";
+                default:
+                    return "Neutral";
+            }
+        }
+
+        private static string FormatAxisState(int axis)
+        {
+            if (axis > 0)
+            {
+                return "Forward";
+            }
+
+            if (axis < 0)
+            {
+                return "Backward";
+            }
+
+            return "Neutral";
+        }
+
+        private void RefreshTwinPoseState(bool forceSensorRequest = false)
+        {
+            if (leftTwinCube != null && leftTwinCube.isConnected)
+            {
+                leftTwinEulers = leftTwinCube.eulers;
+                leftTwinPose = leftTwinCube.pose;
+                leftTwinButtonPressed = leftTwinCube.isPressed;
+            }
+
+            if (rightTwinCube != null && rightTwinCube.isConnected)
+            {
+                rightTwinEulers = rightTwinCube.eulers;
+                rightTwinPose = rightTwinCube.pose;
+                rightTwinButtonPressed = rightTwinCube.isPressed;
+            }
+
+            if (!forceSensorRequest && Time.time < nextTwinMotionSensorRequestAt)
+            {
+                return;
+            }
+
+            nextTwinMotionSensorRequestAt = Time.time + twinMotionSensorRefreshSeconds;
+            leftTwinCube?.RequestAttitudeSensor(Cube.AttitudeFormat.Eulers);
+            rightTwinCube?.RequestAttitudeSensor(Cube.AttitudeFormat.Eulers);
+            leftTwinCube?.RequestMotionSensor();
+            rightTwinCube?.RequestMotionSensor();
+        }
+
+        private string GetTwinSetupStatusText()
+        {
+            if (!AreTwinCubesConnected)
+            {
+                return "Setup: keep two cubes upright and press Connect. The pair now follows the sample multi-cube connection flow.";
+            }
+
+            return "Setup: twin upright mode ready. Cube1/Cube2 are the sample scan-order labels. Both cubes should report H/V, and either button should show LeftCtrl.";
+        }
+
+        private static string GetCubeDebugName(Cube cube, string fallback)
+        {
+            if (cube == null)
+            {
+                return fallback;
+            }
+
+            var label = string.IsNullOrEmpty(cube.localName) ? "cube" : cube.localName;
+            if (string.IsNullOrEmpty(cube.addr))
+            {
+                return label;
+            }
+
+            var suffix = cube.addr.Length <= 4 ? cube.addr : cube.addr.Substring(cube.addr.Length - 4);
+            return $"{label}[{suffix}]";
         }
 
         private static Text FindText(string name)
@@ -246,12 +1017,12 @@ namespace toio.Experiments.ToioLeftHandLab
             var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
             var panel = CreateUiObject("ToioKeyInputPanel", canvasTransform);
-            ConfigureRect(panel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(860f, 160f));
+            ConfigureRect(panel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 32f), new Vector2(1180f, 110f));
             var panelImage = panel.gameObject.AddComponent<Image>();
             panelImage.color = new Color(0.08f, 0.08f, 0.08f, 0.85f);
 
             var labelRect = CreateUiObject("ToioKeyInputLabel", panel);
-            ConfigureRect(labelRect, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(-24f, 28f));
+            ConfigureRect(labelRect, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -12f), new Vector2(-24f, 24f));
             keyLogLabel = labelRect.gameObject.AddComponent<Text>();
             keyLogLabel.font = font;
             keyLogLabel.fontSize = 24;
@@ -260,7 +1031,7 @@ namespace toio.Experiments.ToioLeftHandLab
             keyLogLabel.text = $"toio key input box {VersionLabel}";
 
             var inputRoot = CreateUiObject("ToioKeyInputField", panel);
-            ConfigureRect(inputRoot, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(-24f, 92f));
+            ConfigureRect(inputRoot, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(-24f, 62f));
             var inputImage = inputRoot.gameObject.AddComponent<Image>();
             inputImage.color = new Color(1f, 1f, 1f, 0.97f);
 
@@ -290,7 +1061,7 @@ namespace toio.Experiments.ToioLeftHandLab
             placeholderText.fontSize = 26;
             placeholderText.alignment = TextAnchor.UpperLeft;
             placeholderText.color = new Color(0.4f, 0.4f, 0.4f, 1f);
-            placeholderText.text = "Detected W/A/S/D will be typed here...";
+            placeholderText.text = "Detected keys will be typed here...";
 
             keyLogInputField.textComponent = textComponent;
             keyLogInputField.placeholder = placeholderText;

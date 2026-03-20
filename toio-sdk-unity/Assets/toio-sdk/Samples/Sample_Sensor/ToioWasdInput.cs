@@ -44,6 +44,11 @@ namespace toio.Samples.Sample_Sensor
         private int lastLoggedVertical;
 
         public Cube Cube => cube;
+        public ConnectType ConnectType => connectType;
+        public bool InvertForwardBackward => invertForwardBackward;
+        public float ForwardBackwardTiltThresholdDeg => forwardBackwardTiltThresholdDeg;
+        public bool InvertTurnDirection => invertTurnDirection;
+        public float LeftRightTiltThresholdDeg => leftRightTiltThresholdDeg;
         public bool IsConnected => cube != null && cube.isConnected;
         public int LastLeftSpeed => lastLeftSpeed;
         public int LastRightSpeed => lastRightSpeed;

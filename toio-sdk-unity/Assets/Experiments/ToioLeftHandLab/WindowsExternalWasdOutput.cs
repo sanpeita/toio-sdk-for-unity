@@ -6,7 +6,7 @@ using UnityEngine;
 namespace toio.Experiments.ToioLeftHandLab
 {
     [DisallowMultipleComponent]
-    [RequireComponent(typeof(toio.Samples.Sample_Sensor.ToioWasdInput))]
+    [RequireComponent(typeof(ToioLeftHandLabController))]
     public class WindowsExternalWasdOutput : MonoBehaviour
     {
         private enum OutputMode
@@ -24,6 +24,7 @@ namespace toio.Experiments.ToioLeftHandLab
         }
 
         [Header("Source")]
+        [SerializeField] private ToioLeftHandLabController controller;
         [SerializeField] private toio.Samples.Sample_Sensor.ToioWasdInput inputSource;
 
         [Header("Output")]
@@ -40,6 +41,9 @@ namespace toio.Experiments.ToioLeftHandLab
         [SerializeField] private bool sendA = true;
         [SerializeField] private bool sendS = true;
         [SerializeField] private bool sendD = true;
+        [SerializeField] private bool sendSpace = true;
+        [SerializeField] private bool sendLeftShift = true;
+        [SerializeField] private bool sendLeftControl = true;
 
         [Header("Repeat")]
         [SerializeField] private float firstRepeatDelaySeconds = 0.35f;
@@ -52,10 +56,18 @@ namespace toio.Experiments.ToioLeftHandLab
         private KeyRepeatState aState;
         private KeyRepeatState sState;
         private KeyRepeatState dState;
+        private KeyRepeatState spaceState;
+        private KeyRepeatState leftShiftState;
+        private KeyRepeatState leftControlState;
 
         private void Awake()
         {
             Application.runInBackground = true;
+
+            if (controller == null)
+            {
+                controller = GetComponent<ToioLeftHandLabController>();
+            }
 
             if (inputSource == null)
             {
@@ -66,7 +78,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private void Update()
         {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-            if (inputSource == null || outputMode == OutputMode.Disabled)
+            if ((controller == null && inputSource == null) || outputMode == OutputMode.Disabled)
             {
                 ReleaseAllHeldKeys();
                 ResetRepeatStates();
@@ -88,10 +100,13 @@ namespace toio.Experiments.ToioLeftHandLab
             }
 
             var now = Time.unscaledTime;
-            UpdateKey(KeyCode.W, sendW && inputSource.WPressed, ref wState, now);
-            UpdateKey(KeyCode.A, sendA && inputSource.APressed, ref aState, now);
-            UpdateKey(KeyCode.S, sendS && inputSource.SPressed, ref sState, now);
-            UpdateKey(KeyCode.D, sendD && inputSource.DPressed, ref dState, now);
+            UpdateKey(KeyCode.W, sendW && GetVirtualKey(KeyCode.W), ref wState, now);
+            UpdateKey(KeyCode.A, sendA && GetVirtualKey(KeyCode.A), ref aState, now);
+            UpdateKey(KeyCode.S, sendS && GetVirtualKey(KeyCode.S), ref sState, now);
+            UpdateKey(KeyCode.D, sendD && GetVirtualKey(KeyCode.D), ref dState, now);
+            UpdateKey(KeyCode.Space, sendSpace && GetVirtualKey(KeyCode.Space), ref spaceState, now);
+            UpdateKey(KeyCode.LeftShift, sendLeftShift && GetVirtualKey(KeyCode.LeftShift), ref leftShiftState, now);
+            UpdateKey(KeyCode.LeftControl, sendLeftControl && GetVirtualKey(KeyCode.LeftControl), ref leftControlState, now);
 #endif
         }
 
@@ -170,6 +185,9 @@ namespace toio.Experiments.ToioLeftHandLab
             aState = default;
             sState = default;
             dState = default;
+            spaceState = default;
+            leftShiftState = default;
+            leftControlState = default;
         }
 
         private void ReleaseAllHeldKeys()
@@ -183,6 +201,9 @@ namespace toio.Experiments.ToioLeftHandLab
             ReleaseHeldKey(KeyCode.A, ref aState);
             ReleaseHeldKey(KeyCode.S, ref sState);
             ReleaseHeldKey(KeyCode.D, ref dState);
+            ReleaseHeldKey(KeyCode.Space, ref spaceState);
+            ReleaseHeldKey(KeyCode.LeftShift, ref leftShiftState);
+            ReleaseHeldKey(KeyCode.LeftControl, ref leftControlState);
         }
 
         private void ReleaseHeldKey(KeyCode keyCode, ref KeyRepeatState state)
@@ -215,6 +236,16 @@ namespace toio.Experiments.ToioLeftHandLab
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             SendKeyEvent(keyCode, true);
 #endif
+        }
+
+        private bool GetVirtualKey(KeyCode keyCode)
+        {
+            if (controller != null)
+            {
+                return controller.GetVirtualKey(keyCode);
+            }
+
+            return inputSource != null && inputSource.GetVirtualKey(keyCode);
         }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
@@ -318,6 +349,12 @@ namespace toio.Experiments.ToioLeftHandLab
                     return 0x53;
                 case KeyCode.D:
                     return 0x44;
+                case KeyCode.Space:
+                    return 0x20;
+                case KeyCode.LeftShift:
+                    return 0xA0;
+                case KeyCode.LeftControl:
+                    return 0xA2;
                 default:
                     return 0;
             }
