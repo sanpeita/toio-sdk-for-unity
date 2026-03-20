@@ -7,7 +7,7 @@ namespace toio.Experiments.ToioLeftHandLab
 {
     public class ToioLeftHandLabController : MonoBehaviour
     {
-        private const string VersionLabel = "ver1.0";
+        private const string VersionLabel = "ver1.2";
 
         [SerializeField] private toio.Samples.Sample_Sensor.ToioWasdInput inputSource;
         [SerializeField] private bool showKeyboardFallbackHint = true;
@@ -30,7 +30,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private Text keyLogLabel;
         private readonly StringBuilder keyLogBuilder = new StringBuilder();
 
-        private string footerMessage = "Toio Left Hand Lab ver1.0. W/S uses pitch tilt. A/D uses roll tilt.";
+        private string footerMessage = "Toio Left Hand Lab ver1.2. W/S uses pitch tilt. A/D uses roll tilt. Minecraft-targeted external output is ready.";
 
         private void Awake()
         {
@@ -88,7 +88,7 @@ namespace toio.Experiments.ToioLeftHandLab
             footerMessage = "Connecting to nearest toio core cube...";
             RefreshTexts();
             await inputSource.Connect();
-            footerMessage = "Connected. ver1.0 is ready. Tilt forward/back for W/S, tilt left/right for A/D.";
+            footerMessage = "Connected. ver1.2 is ready. Tilt forward/back for W/S, tilt left/right for A/D.";
         }
 
         public void Forward()

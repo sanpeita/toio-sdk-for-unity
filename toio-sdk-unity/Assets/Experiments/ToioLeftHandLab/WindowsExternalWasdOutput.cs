@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using UnityEngine;
 
 namespace toio.Experiments.ToioLeftHandLab
@@ -28,6 +29,11 @@ namespace toio.Experiments.ToioLeftHandLab
         [Header("Output")]
         [SerializeField] private OutputMode outputMode = OutputMode.TapRepeat;
         [SerializeField] private bool onlyWhenUnityIsNotFocused = true;
+
+        [Header("Target Window")]
+        [SerializeField] private bool requireForegroundWindowTitleMatch = false;
+        [SerializeField] private string requiredForegroundWindowTitleFragment = "Minecraft";
+        [SerializeField] private bool ignoreCaseInWindowTitleMatch = true;
 
         [Header("Enabled Keys")]
         [SerializeField] private bool sendW = true;
@@ -68,6 +74,13 @@ namespace toio.Experiments.ToioLeftHandLab
             }
 
             if (onlyWhenUnityIsNotFocused && Application.isFocused)
+            {
+                ReleaseAllHeldKeys();
+                ResetRepeatStates();
+                return;
+            }
+
+            if (!IsTargetWindowActive())
             {
                 ReleaseAllHeldKeys();
                 ResetRepeatStates();
@@ -213,6 +226,14 @@ namespace toio.Experiments.ToioLeftHandLab
                 return;
             }
 
+            var scanCode = (ushort)MapVirtualKey(virtualKey, MAPVK_VK_TO_VSC);
+            var useScanCode = scanCode != 0;
+            var flags = keyUp ? KEYEVENTF_KEYUP : 0;
+            if (useScanCode)
+            {
+                flags |= KEYEVENTF_SCANCODE;
+            }
+
             var input = new INPUT
             {
                 type = INPUT_KEYBOARD,
@@ -220,9 +241,9 @@ namespace toio.Experiments.ToioLeftHandLab
                 {
                     ki = new KEYBDINPUT
                     {
-                        wVk = virtualKey,
-                        wScan = 0,
-                        dwFlags = keyUp ? KEYEVENTF_KEYUP : 0,
+                        wVk = useScanCode ? (ushort)0 : virtualKey,
+                        wScan = useScanCode ? scanCode : (ushort)0,
+                        dwFlags = flags,
                         dwExtraInfo = IntPtr.Zero,
                         time = 0
                     }
@@ -241,6 +262,48 @@ namespace toio.Experiments.ToioLeftHandLab
                     Debug.Log($"External key {(keyUp ? "up" : "down")}: {keyCode}");
                 }
             }
+        }
+
+        private bool IsTargetWindowActive()
+        {
+            if (!requireForegroundWindowTitleMatch)
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(requiredForegroundWindowTitleFragment))
+            {
+                return true;
+            }
+
+            var title = GetForegroundWindowTitle();
+            if (string.IsNullOrEmpty(title))
+            {
+                return false;
+            }
+
+            var comparison = ignoreCaseInWindowTitleMatch
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            return title.IndexOf(requiredForegroundWindowTitleFragment, comparison) >= 0;
+        }
+
+        private static string GetForegroundWindowTitle()
+        {
+            var hwnd = GetForegroundWindow();
+            if (hwnd == IntPtr.Zero)
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder(256);
+            var length = GetWindowText(hwnd, builder, builder.Capacity);
+            if (length <= 0)
+            {
+                return string.Empty;
+            }
+
+            return builder.ToString();
         }
 
         private static ushort ToVirtualKey(KeyCode keyCode)
@@ -307,8 +370,19 @@ namespace toio.Experiments.ToioLeftHandLab
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
         private const uint INPUT_KEYBOARD = 1;
         private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const uint KEYEVENTF_SCANCODE = 0x0008;
+        private const uint MAPVK_VK_TO_VSC = 0;
 #endif
     }
 }

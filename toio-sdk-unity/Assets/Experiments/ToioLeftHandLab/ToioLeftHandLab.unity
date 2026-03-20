@@ -3746,7 +3746,7 @@ MonoBehaviour:
   useKeyboardFallback: 1
   invertForwardBackward: 1
   forwardBackwardTiltThresholdDeg: 8
-  invertTurnDirection: 0
+  invertTurnDirection: 1
   leftRightTiltThresholdDeg: 8
   attitudeIntervalMs: 50
   holdSeconds: 0.2
@@ -3764,8 +3764,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   inputSource: {fileID: 1566689160}
-  outputMode: 1
+  outputMode: 2
   onlyWhenUnityIsNotFocused: 0
+  requireForegroundWindowTitleMatch: 1
+  requiredForegroundWindowTitleFragment: Minecraft
+  ignoreCaseInWindowTitleMatch: 1
   sendW: 1
   sendA: 1
   sendS: 1
