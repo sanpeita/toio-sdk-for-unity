@@ -36,6 +36,9 @@ namespace toio.Experiments.ToioLeftHandLab
         [SerializeField] private float twinMotionSensorRefreshSeconds = 0.5f;
         [SerializeField] private float shiftHoldSeconds = 2f;
         [SerializeField] private float ctrlHoldSeconds = 2f;
+        [SerializeField] private int twinConnectMaxAttempts = 3;
+        [SerializeField] private int twinRetryDelayMs = 1200;
+        [SerializeField] private int twinConnectCleanupDelayMs = 600;
 
         [Header("UI")]
         [SerializeField] private int maxLogLength = 64;
@@ -63,6 +66,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private Button twinStickModeButton;
         private Text modeHintLabel;
 
+        private CubeManager twinCubeManager;
         private Cube leftTwinCube;
         private Cube rightTwinCube;
         private string leftTwinListenerKey;
@@ -80,16 +84,19 @@ namespace toio.Experiments.ToioLeftHandLab
         private bool twinSActive;
         private bool twinDActive;
         private bool twinSpaceActive;
+        private bool twinLeftShiftActive;
         private bool lastTwinAActive;
         private bool lastTwinDActive;
         private bool lastTwinWActive;
         private bool lastTwinSActive;
+        private bool lastTwinSpaceActive;
+        private bool lastTwinLeftShiftActive;
         private bool lastTwinCtrlActive;
         private bool isConnecting;
         private float nextTwinMotionSensorRequestAt;
 
         private string footerMessage =
-            "Toio Left Hand Lab ver1.3. Twin flow: connect two upright cubes together. Both cubes use the same WASD rules as 1stick, and either button shows LeftCtrl.";
+            "Toio Left Hand Lab ver1.3. Twin flow: connect two upright cubes together. Both cubes use the same WASD rules as 1stick, inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
 
         public bool IsConnected
         {
@@ -108,8 +115,8 @@ namespace toio.Experiments.ToioLeftHandLab
         public bool APressed => (selectedMode == ControlMode.OneStick && inputSource != null) ? inputSource.APressed : twinAActive;
         public bool SPressed => (selectedMode == ControlMode.OneStick && inputSource != null) ? inputSource.SPressed : twinSActive;
         public bool DPressed => (selectedMode == ControlMode.OneStick && inputSource != null) ? inputSource.DPressed : twinDActive;
-        public bool SpacePressed => false;
-        public bool LeftShiftPressed => false;
+        public bool SpacePressed => selectedMode == ControlMode.TwinStick && twinSpaceActive;
+        public bool LeftShiftPressed => selectedMode == ControlMode.TwinStick && twinLeftShiftActive;
         public bool LeftControlPressed => selectedMode == ControlMode.TwinStick && (leftTwinButtonPressed || rightTwinButtonPressed);
 
         private bool AreTwinCubesConnected =>
@@ -148,6 +155,7 @@ namespace toio.Experiments.ToioLeftHandLab
             textSpeed = FindText("TextSpeed");
             textMag = FindText("TextMag");
             textAttitude = FindText("TextAttitude");
+            EnsureStatusDashboardUi();
 
             var connectObject = GameObject.Find("ButtonConnect");
             if (connectObject != null)
@@ -184,6 +192,7 @@ namespace toio.Experiments.ToioLeftHandLab
             }
 
             RemoveTwinListeners();
+            twinCubeManager?.DisconnectAll();
         }
 
         public bool GetVirtualKey(KeyCode keyCode)
@@ -321,7 +330,7 @@ namespace toio.Experiments.ToioLeftHandLab
         {
             footerMessage = selectedMode == ControlMode.OneStick
                 ? "Attitude sensing is always used here for A/D detection."
-                : "Twin stick mode uses left/right tilt from both cubes.";
+                : "Twin stick mode uses shared pitch for W/S, shared roll for A/D, inner tilt for LeftShift, and outer tilt for Space.";
         }
 
         private void TrySelectMode(ControlMode mode)
@@ -342,7 +351,7 @@ namespace toio.Experiments.ToioLeftHandLab
             selectedMode = mode;
             footerMessage = mode == ControlMode.OneStick
                 ? "1stick mode selected. Press Connect to use the current single-cube setup."
-                : "twin stick mode selected. Keep two cubes upright, then press Connect. Both cubes use the same tilt rules as 1stick, and either button shows LeftCtrl.";
+                : "twin stick mode selected. Keep two cubes upright, then press Connect. Shared pitch gives W/S, shared roll gives A/D, inner tilt gives LeftShift, outer tilt gives Space, and either button shows LeftCtrl.";
             UpdateModeSelectionUi();
             RefreshTexts();
         }
@@ -386,17 +395,21 @@ namespace toio.Experiments.ToioLeftHandLab
                 RemoveTwinListeners();
                 ClearTwinTransientState();
             }
+            else if (!AreTwinCubesConnected)
+            {
+                await DisconnectTwinCubeSelection();
+            }
 
             if (!AreTwinCubesConnected)
             {
                 leftTwinCube = null;
                 rightTwinCube = null;
-                footerMessage = "Connecting two cubes together. This now follows the multi-cube sample flow used in Sample_Motor.";
+                footerMessage = "Connecting two cubes together. This now follows the CubeManager multi-connect flow used in the official samples.";
                 RefreshTexts();
                 var cubes = await ConnectTwinCubePair();
                 if (cubes == null || cubes.Length < 2)
                 {
-                    footerMessage = "Twin connection failed. Two connected cubes were not confirmed. Please keep two cubes nearby and press Connect again.";
+                    footerMessage = "Twin connection failed. Two connected cubes were not confirmed after retrying. Please keep both cubes nearby and press Connect again.";
                     return;
                 }
 
@@ -410,30 +423,105 @@ namespace toio.Experiments.ToioLeftHandLab
             }
 
             footerMessage =
-                $"Connected. Twin upright mode is ready. Cube1={GetCubeDebugName(leftTwinCube, "cube1")} Cube2={GetCubeDebugName(rightTwinCube, "cube2")}. Cube1/Cube2 follow the sample multi-cube scan order. Both cubes use the same tilt rules as 1stick. Button -> LeftCtrl.";
+                $"Connected. Twin upright mode is ready. Cube1={GetCubeDebugName(leftTwinCube, "cube1")} Cube2={GetCubeDebugName(rightTwinCube, "cube2")}. Cube labels are kept stable by BLE address order. Shared pitch gives W/S, shared roll gives A/D, inner tilt gives LeftShift, outer tilt gives Space, and either button gives LeftCtrl.";
         }
 
         private async UniTask<Cube[]> ConnectTwinCubePair()
         {
-            var connectType = inputSource.ConnectType;
-            var peripherals = await new CubeScanner(connectType).NearScan(2, 20f);
-            if (peripherals == null || peripherals.Length < 2)
+            var cubeManager = GetOrCreateTwinCubeManager();
+            var attemptCount = Mathf.Max(1, twinConnectMaxAttempts);
+
+            for (var attempt = 1; attempt <= attemptCount; attempt++)
             {
-                return null;
+                footerMessage = attempt == 1
+                    ? "Scanning and connecting for twin stick mode..."
+                    : $"Retrying twin connection ({attempt}/{attemptCount})...";
+                RefreshTexts();
+
+                try
+                {
+                    await cubeManager.MultiConnect(2);
+                }
+                catch (System.Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
+
+                var connected = GetOrderedTwinCubesFromManager(cubeManager);
+                if (connected.Length >= 2)
+                {
+                    return connected;
+                }
+
+                await DisconnectTwinCubeSelection();
+                if (attempt < attemptCount)
+                {
+                    await UniTask.Delay(twinRetryDelayMs);
+                }
             }
 
-            var cubes = await new CubeConnecter(connectType).Connect(peripherals);
-            if (cubes == null)
+            return null;
+        }
+
+        private CubeManager GetOrCreateTwinCubeManager()
+        {
+            var connectType = ResolveTwinConnectType();
+            if (twinCubeManager == null)
             {
-                return null;
+                twinCubeManager = new CubeManager(connectType);
             }
 
-            return cubes
+            return twinCubeManager;
+        }
+
+        private ConnectType ResolveTwinConnectType()
+        {
+            var connectType = inputSource != null ? inputSource.ConnectType : ConnectType.Real;
+#if UNITY_EDITOR || UNITY_STANDALONE
+            if (connectType == ConnectType.Auto)
+            {
+                return ConnectType.Real;
+            }
+#endif
+            return connectType;
+        }
+
+        private Cube[] GetOrderedTwinCubesFromManager(CubeManager cubeManager)
+        {
+            if (cubeManager == null)
+            {
+                return new Cube[0];
+            }
+
+            return cubeManager.connectedCubes
                 .Where(cube => cube != null && cube.isConnected)
                 .GroupBy(cube => cube.addr)
                 .Select(group => group.First())
+                .OrderBy(cube => cube.addr)
                 .Take(2)
                 .ToArray();
+        }
+
+        private async UniTask DisconnectTwinCubeSelection()
+        {
+            RemoveTwinListeners();
+
+            if (twinCubeManager != null)
+            {
+                foreach (var cube in GetOrderedTwinCubesFromManager(twinCubeManager))
+                {
+                    twinCubeManager.Disconnect(cube);
+                }
+            }
+
+            leftTwinCube = null;
+            rightTwinCube = null;
+            ClearTwinTransientState();
+
+            if (twinConnectCleanupDelayMs > 0)
+            {
+                await UniTask.Delay(twinConnectCleanupDelayMs);
+            }
         }
 
         private async UniTask RegisterTwinCube(
@@ -505,6 +593,7 @@ namespace toio.Experiments.ToioLeftHandLab
                 twinSActive = false;
                 twinDActive = false;
                 twinSpaceActive = false;
+                twinLeftShiftActive = false;
                 leftTwinTiltState = HorizontalTiltState.Neutral;
                 rightTwinTiltState = HorizontalTiltState.Neutral;
                 return;
@@ -526,7 +615,8 @@ namespace toio.Experiments.ToioLeftHandLab
             twinSActive = combinedVertical < 0;
             twinDActive = combinedHorizontal > 0;
             twinAActive = combinedHorizontal < 0;
-            twinSpaceActive = false;
+            twinLeftShiftActive = leftHorizontal < 0 && rightHorizontal > 0;
+            twinSpaceActive = leftHorizontal > 0 && rightHorizontal < 0;
 
             if (LeftControlPressed && !lastTwinCtrlActive)
             {
@@ -589,18 +679,24 @@ namespace toio.Experiments.ToioLeftHandLab
 
         private void UpdateTwinActionFooter()
         {
-            TrackTwinActionEdge(twinWActive, ref lastTwinWActive, "Twin stick action: W");
-            TrackTwinActionEdge(twinAActive, ref lastTwinAActive, "Twin stick action: A");
-            TrackTwinActionEdge(twinSActive, ref lastTwinSActive, "Twin stick action: S");
-            TrackTwinActionEdge(twinDActive, ref lastTwinDActive, "Twin stick action: D");
-            TrackTwinActionEdge(LeftControlPressed, ref lastTwinCtrlActive, "Twin stick action: LeftCtrl");
+            TrackTwinActionEdge(twinWActive, ref lastTwinWActive, "Twin stick action: W", "W");
+            TrackTwinActionEdge(twinAActive, ref lastTwinAActive, "Twin stick action: A", "A");
+            TrackTwinActionEdge(twinSActive, ref lastTwinSActive, "Twin stick action: S", "S");
+            TrackTwinActionEdge(twinDActive, ref lastTwinDActive, "Twin stick action: D", "D");
+            TrackTwinActionEdge(twinLeftShiftActive, ref lastTwinLeftShiftActive, "Twin stick action: LeftShift (inner tilt)", "[Shift]");
+            TrackTwinActionEdge(twinSpaceActive, ref lastTwinSpaceActive, "Twin stick action: Space (outer tilt)", "[Space]");
+            TrackTwinActionEdge(LeftControlPressed, ref lastTwinCtrlActive, "Twin stick action: LeftCtrl", "[Ctrl]");
         }
 
-        private void TrackTwinActionEdge(bool isActive, ref bool previousState, string message)
+        private void TrackTwinActionEdge(bool isActive, ref bool previousState, string message, string logToken)
         {
             if (isActive && !previousState)
             {
                 footerMessage = message;
+                if (!string.IsNullOrEmpty(logToken))
+                {
+                    AppendInputChar(logToken);
+                }
             }
 
             previousState = isActive;
@@ -622,10 +718,13 @@ namespace toio.Experiments.ToioLeftHandLab
             twinSActive = false;
             twinDActive = false;
             twinSpaceActive = false;
+            twinLeftShiftActive = false;
             lastTwinWActive = false;
             lastTwinAActive = false;
             lastTwinSActive = false;
             lastTwinDActive = false;
+            lastTwinSpaceActive = false;
+            lastTwinLeftShiftActive = false;
             lastTwinCtrlActive = false;
         }
 
@@ -697,19 +796,19 @@ namespace toio.Experiments.ToioLeftHandLab
         private void RefreshTwinStickTexts()
         {
             SetText(textBattery, AreTwinCubesConnected ? "Connect: Connected (twin stick)" : "Connect: Waiting for twin cube pair");
-            SetText(textFlat, $"A: {(twinAActive ? "ON" : "off")}");
-            SetText(textButton, $"LeftCtrl: {(LeftControlPressed ? "ON" : "off")}");
+            SetText(textFlat, $"W: {(twinWActive ? "ON" : "off")}");
+            SetText(textButton, $"A: {(twinAActive ? "ON" : "off")}");
             SetText(textCollision, $"Cube1 {GetCubeDebugName(leftTwinCube, "not connected")}: H={FormatTiltState(leftTwinTiltState)} V={FormatAxisState(EvaluateVerticalAxis(leftTwinEulers))} Btn={(leftTwinButtonPressed ? "ON" : "off")}");
             SetText(textDoubleTap, $"Cube2 {GetCubeDebugName(rightTwinCube, "not connected")}: H={FormatTiltState(rightTwinTiltState)} V={FormatAxisState(EvaluateVerticalAxis(rightTwinEulers))} Btn={(rightTwinButtonPressed ? "ON" : "off")}");
-            SetText(textPose, $"W: {(twinWActive ? "ON" : "off")}");
-            SetText(textShake, $"S: {(twinSActive ? "ON" : "off")}");
+            SetText(textPose, $"S: {(twinSActive ? "ON" : "off")}");
+            SetText(textShake, $"D: {(twinDActive ? "ON" : "off")}");
             SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel} ({GetModeLabel(selectedMode)}).");
-            SetText(textStandardID, "TwinStick upright mode: both cubes use the same tilt rules as 1stick. W/S uses pitch, A/D uses roll, and button shows LeftCtrl.");
+            SetText(textStandardID, "TwinStick upright mode: W/S uses shared pitch, A/D uses shared roll, inner tilt -> LeftShift, outer tilt -> Space, and either button -> LeftCtrl.");
             SetText(textAngle, GetTwinSetupStatusText());
-            SetText(textSpeed, "Mode: TwinStick  Upright  No arm required");
+            SetText(textSpeed, $"Shift(inner): {(LeftShiftPressed ? "ON" : "off")}  Space(outer): {(SpacePressed ? "ON" : "off")}  Ctrl: {(LeftControlPressed ? "ON" : "off")}");
             SetText(
                 textMag,
-                $"Euler raw: L x={leftTwinEulers.x:F1} y={leftTwinEulers.y:F1} | R x={rightTwinEulers.x:F1} y={rightTwinEulers.y:F1}"
+                $"Euler raw: L x={leftTwinEulers.x:F1} y={leftTwinEulers.y:F1} | R x={rightTwinEulers.x:F1} y={rightTwinEulers.y:F1}  Pair order: BLE address"
             );
             SetText(textAttitude, footerMessage);
             if (keyLogLabel != null)
@@ -913,10 +1012,10 @@ namespace toio.Experiments.ToioLeftHandLab
         {
             if (!AreTwinCubesConnected)
             {
-                return "Setup: keep two cubes upright and press Connect. The pair now follows the sample multi-cube connection flow.";
+                return "Setup: keep two cubes upright and press Connect. Twin connect retries now use CubeManager multi-connect.";
             }
 
-            return "Setup: twin upright mode ready. Cube1/Cube2 are the sample scan-order labels. Both cubes should report H/V, and either button should show LeftCtrl.";
+            return "Setup: twin upright mode ready. Cube1/Cube2 stay in BLE address order. Inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
         }
 
         private static string GetCubeDebugName(Cube cube, string fallback)
@@ -934,6 +1033,50 @@ namespace toio.Experiments.ToioLeftHandLab
 
             var suffix = cube.addr.Length <= 4 ? cube.addr : cube.addr.Substring(cube.addr.Length - 4);
             return $"{label}[{suffix}]";
+        }
+
+        private void EnsureStatusDashboardUi()
+        {
+            var canvas = GameObject.Find("Canvas")?.GetComponent<Canvas>();
+            if (canvas == null)
+            {
+                return;
+            }
+
+            var dashboard = new ToioLeftHandLabDashboardLayout();
+            var refs = dashboard.Ensure(
+                canvas,
+                new[]
+                {
+                    textBattery,
+                    textFlat,
+                    textCollision,
+                    textButton,
+                    textPositionID,
+                    textStandardID,
+                    textAngle,
+                    textDoubleTap,
+                    textPose,
+                    textShake,
+                    textSpeed,
+                    textMag,
+                    textAttitude
+                }
+            );
+
+            textBattery = refs.TextBattery;
+            textFlat = refs.TextFlat;
+            textCollision = refs.TextCollision;
+            textButton = refs.TextButton;
+            textPositionID = refs.TextPositionID;
+            textStandardID = refs.TextStandardID;
+            textAngle = refs.TextAngle;
+            textDoubleTap = refs.TextDoubleTap;
+            textPose = refs.TextPose;
+            textShake = refs.TextShake;
+            textSpeed = refs.TextSpeed;
+            textMag = refs.TextMag;
+            textAttitude = refs.TextAttitude;
         }
 
         private static Text FindText(string name)
@@ -1017,7 +1160,7 @@ namespace toio.Experiments.ToioLeftHandLab
             var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
             var panel = CreateUiObject("ToioKeyInputPanel", canvasTransform);
-            ConfigureRect(panel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 32f), new Vector2(1180f, 110f));
+            ConfigureRect(panel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(140f, 32f), new Vector2(1040f, 110f));
             var panelImage = panel.gameObject.AddComponent<Image>();
             panelImage.color = new Color(0.08f, 0.08f, 0.08f, 0.85f);
 
