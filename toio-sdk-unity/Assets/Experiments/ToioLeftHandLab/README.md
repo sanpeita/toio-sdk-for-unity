@@ -94,13 +94,29 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
 - 画面中央の水色ウィンドウは 2 列構成へ変更
 - 画面下部のキー確認テキストボックスは右へ寄せて見切れにくく調整
 
+### ver1.4 記録
+
+- 記録日: 2026-03-21
+- バージョン名: `ver1.4`
+- 状況: twin 入力に Minecraft 向け旋回機能を追加し、左右旋回の確認まで完了
+- 方針: 差分 pitch を前景ウィンドウへのマウス左右移動として送る
+- 備考: 既存の `W/A/S/D` `LeftShift` `Space` `LeftCtrl` との競合は許容
+
+### ver1.4 仕様
+
+- `ver1.4` では twin 入力に旋回機能を追加
+- `L: 前傾 + R: 後傾` で右旋回
+- `L: 後傾 + R: 前傾` で左旋回
+- Minecraft 向けには、差分 pitch を前景ウィンドウへのマウス左右移動として送る
+- 既存の `W/A/S/D` `LeftShift` `Space` `LeftCtrl` との競合は許容し、自然な同時操作を優先する
+
 ### Minecraft 向け設定
 
 - `WindowsExternalWasdOutput` は、前景ウィンドウのタイトルに指定文字列が含まれるときだけ送出できるようにしてあります。
 - 既定シーンでは `Output Mode = HoldWhileTilted`、`Require Foreground Window Title Match = On`、`Required Foreground Window Title Fragment = Minecraft` です。
 - たとえば `Minecraft 1.21.11 - シングルプレイ` のようなタイトルでも、`Minecraft` 部分一致で反応します。
 - Minecraft 以外へ誤送信したくない場合は、このタイトル絞り込みを維持してください。
-- `ver1.3` では `W/A/S/D` に加えて `LeftShift` `Space` `LeftCtrl` も対象にしています。
+- `ver1.4` では `W/A/S/D` `LeftShift` `Space` `LeftCtrl` に加えて、差分 pitch による旋回マウス送出も対象にしています。
 
 ### 開き方
 
@@ -117,7 +133,7 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
 - 画面左側の各ラベルに、選択中モードに応じたキー状態が出ます。
 - 水色ウィンドウは 2 列構成で、左に接続状態、右にキューブ詳細や補足を表示します。
 - `1stick mode` では `Vertical Axis = W/S`, `Horizontal Axis = A/D`
-- `twin stick mode` では `W/A/S/D` に加えて `Shift(inner)` `Space(outer)` `Ctrl` が出ます。
+- `twin stick mode` では `W/A/S/D` に加えて `Shift(inner)` `Space(outer)` `Ctrl` `Turn(mouse)` が出ます。
 - 画面下部のテキストボックスに、検出されたキーが順に入力されます。
 - 画面下部テキストに実験条件と現在の補足が出ます。
 - 外部入力を試す場合は、Unity の Play を維持したまま対象アプリを前面にします。
@@ -133,6 +149,13 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
 - 2026-03-21: いったん `LeftShift` / `Space` の内外対応が逆になったが、Unity 内確認で反応自体は取れていたため、最終的に入れ替えて正しい向きへ戻した。
 - 2026-03-21: 以前の `A/D` は実機向きに合わせて反転調整したが、今回の twin 追加では `Shift` / `Space` 側も実機確認に合わせて正位へ戻した。
 
+### ver1.4 試行錯誤ログ
+
+- 2026-03-21: `ver1.4` として twin の差分 pitch を旋回入力へ使う方針を決定。
+- 2026-03-21: Minecraft 向けに、差分 pitch を前景ウィンドウへのマウス左右移動として送る案を採用。
+- 2026-03-21: 競合回避の専用モードは作らず、既存の `W/A/S/D` `LeftShift` `Space` `LeftCtrl` との競合は許容する方針にした。
+- 2026-03-21: 初回実装では旋回方向の符号が逆になったが、実機確認で左右が逆だと判明したため、最後に符号を反転して正しい向きへ修正した。
+
 ### 実装メモ
 
 - `ToioWasdInput`
@@ -141,12 +164,13 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
 - `ToioLeftHandLabController`
   - 既存の `Sample_Sensor` UI を土台にしつつ、`ver1.3` では twin 入力へ拡張
   - `CubeManager` ベースで 2 台接続を扱う
-  - twin では `W/A/S/D` `LeftShift` `Space` `LeftCtrl` を統合表示
+  - twin では `W/A/S/D` `LeftShift` `Space` `LeftCtrl` `Turn(mouse)` を統合表示
 - `WindowsExternalWasdOutput`
   - Windows の前景ウィンドウへキーを送る実験用コンポーネント
   - `TapRepeat` と `HoldWhileTilted` を切り替え可能
   - 前景ウィンドウタイトルの部分一致で送出先を絞り込める
   - 送出はゲーム入力で通りやすいスキャンコード優先
+  - `ver1.4` では差分 pitch からマウス左右移動も送る
   - 既定シーンでは `HoldWhileTilted`、`Minecraft` タイトル絞り込み、Console ログ出力を有効化済み
 
 ### 前提

@@ -9,7 +9,7 @@ namespace toio.Experiments.ToioLeftHandLab
 {
     public class ToioLeftHandLabController : MonoBehaviour
     {
-        private const string VersionLabel = "ver1.3";
+        private const string VersionLabel = "ver1.4";
 
         private enum ControlMode
         {
@@ -85,6 +85,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private bool twinDActive;
         private bool twinSpaceActive;
         private bool twinLeftShiftActive;
+        private int twinTurnAxis;
         private bool lastTwinAActive;
         private bool lastTwinDActive;
         private bool lastTwinWActive;
@@ -96,7 +97,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private float nextTwinMotionSensorRequestAt;
 
         private string footerMessage =
-            "Toio Left Hand Lab ver1.3. Twin flow: connect two upright cubes together. Both cubes use the same WASD rules as 1stick, inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
+            "Toio Left Hand Lab ver1.4. Twin flow: connect two upright cubes together. Shared pitch gives W/S, shared roll gives A/D, differential pitch drives Minecraft turn mouse, inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
 
         public bool IsConnected
         {
@@ -118,6 +119,7 @@ namespace toio.Experiments.ToioLeftHandLab
         public bool SpacePressed => selectedMode == ControlMode.TwinStick && twinSpaceActive;
         public bool LeftShiftPressed => selectedMode == ControlMode.TwinStick && twinLeftShiftActive;
         public bool LeftControlPressed => selectedMode == ControlMode.TwinStick && (leftTwinButtonPressed || rightTwinButtonPressed);
+        public int TwinTurnAxis => selectedMode == ControlMode.TwinStick ? twinTurnAxis : 0;
 
         private bool AreTwinCubesConnected =>
             leftTwinCube != null && leftTwinCube.isConnected &&
@@ -330,7 +332,7 @@ namespace toio.Experiments.ToioLeftHandLab
         {
             footerMessage = selectedMode == ControlMode.OneStick
                 ? "Attitude sensing is always used here for A/D detection."
-                : "Twin stick mode uses shared pitch for W/S, shared roll for A/D, inner tilt for LeftShift, and outer tilt for Space.";
+                : "Twin stick mode uses shared pitch for W/S, shared roll for A/D, differential pitch for Minecraft turn mouse, inner tilt for LeftShift, and outer tilt for Space.";
         }
 
         private void TrySelectMode(ControlMode mode)
@@ -351,7 +353,7 @@ namespace toio.Experiments.ToioLeftHandLab
             selectedMode = mode;
             footerMessage = mode == ControlMode.OneStick
                 ? "1stick mode selected. Press Connect to use the current single-cube setup."
-                : "twin stick mode selected. Keep two cubes upright, then press Connect. Shared pitch gives W/S, shared roll gives A/D, inner tilt gives LeftShift, outer tilt gives Space, and either button shows LeftCtrl.";
+                : "twin stick mode selected. Keep two cubes upright, then press Connect. Shared pitch gives W/S, shared roll gives A/D, differential pitch drives Minecraft turn mouse, inner tilt gives LeftShift, outer tilt gives Space, and either button shows LeftCtrl.";
             UpdateModeSelectionUi();
             RefreshTexts();
         }
@@ -423,7 +425,7 @@ namespace toio.Experiments.ToioLeftHandLab
             }
 
             footerMessage =
-                $"Connected. Twin upright mode is ready. Cube1={GetCubeDebugName(leftTwinCube, "cube1")} Cube2={GetCubeDebugName(rightTwinCube, "cube2")}. Cube labels are kept stable by BLE address order. Shared pitch gives W/S, shared roll gives A/D, inner tilt gives LeftShift, outer tilt gives Space, and either button gives LeftCtrl.";
+                $"Connected. Twin upright mode is ready. Cube1={GetCubeDebugName(leftTwinCube, "cube1")} Cube2={GetCubeDebugName(rightTwinCube, "cube2")}. Cube labels are kept stable by BLE address order. Shared pitch gives W/S, shared roll gives A/D, differential pitch drives Minecraft turn mouse, inner tilt gives LeftShift, outer tilt gives Space, and either button gives LeftCtrl.";
         }
 
         private async UniTask<Cube[]> ConnectTwinCubePair()
@@ -594,6 +596,7 @@ namespace toio.Experiments.ToioLeftHandLab
                 twinDActive = false;
                 twinSpaceActive = false;
                 twinLeftShiftActive = false;
+                twinTurnAxis = 0;
                 leftTwinTiltState = HorizontalTiltState.Neutral;
                 rightTwinTiltState = HorizontalTiltState.Neutral;
                 return;
@@ -610,6 +613,7 @@ namespace toio.Experiments.ToioLeftHandLab
 
             var combinedHorizontal = Mathf.Clamp(leftHorizontal + rightHorizontal, -1, 1);
             var combinedVertical = Mathf.Clamp(leftVertical + rightVertical, -1, 1);
+            var differentialVertical = Mathf.Clamp(leftVertical - rightVertical, -1, 1);
 
             twinWActive = combinedVertical > 0;
             twinSActive = combinedVertical < 0;
@@ -617,6 +621,7 @@ namespace toio.Experiments.ToioLeftHandLab
             twinAActive = combinedHorizontal < 0;
             twinLeftShiftActive = leftHorizontal < 0 && rightHorizontal > 0;
             twinSpaceActive = leftHorizontal > 0 && rightHorizontal < 0;
+            twinTurnAxis = -differentialVertical;
 
             if (LeftControlPressed && !lastTwinCtrlActive)
             {
@@ -719,6 +724,7 @@ namespace toio.Experiments.ToioLeftHandLab
             twinDActive = false;
             twinSpaceActive = false;
             twinLeftShiftActive = false;
+            twinTurnAxis = 0;
             lastTwinWActive = false;
             lastTwinAActive = false;
             lastTwinSActive = false;
@@ -803,9 +809,9 @@ namespace toio.Experiments.ToioLeftHandLab
             SetText(textPose, $"S: {(twinSActive ? "ON" : "off")}");
             SetText(textShake, $"D: {(twinDActive ? "ON" : "off")}");
             SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel} ({GetModeLabel(selectedMode)}).");
-            SetText(textStandardID, "TwinStick upright mode: W/S uses shared pitch, A/D uses shared roll, inner tilt -> LeftShift, outer tilt -> Space, and either button -> LeftCtrl.");
+            SetText(textStandardID, "TwinStick upright mode: W/S uses shared pitch, A/D uses shared roll, differential pitch -> Minecraft turn mouse, inner tilt -> LeftShift, outer tilt -> Space, and either button -> LeftCtrl.");
             SetText(textAngle, GetTwinSetupStatusText());
-            SetText(textSpeed, $"Shift(inner): {(LeftShiftPressed ? "ON" : "off")}  Space(outer): {(SpacePressed ? "ON" : "off")}  Ctrl: {(LeftControlPressed ? "ON" : "off")}");
+            SetText(textSpeed, $"Turn(mouse): {FormatTurnAxis(TwinTurnAxis)}  Shift(inner): {(LeftShiftPressed ? "ON" : "off")}  Space(outer): {(SpacePressed ? "ON" : "off")}  Ctrl: {(LeftControlPressed ? "ON" : "off")}");
             SetText(
                 textMag,
                 $"Euler raw: L x={leftTwinEulers.x:F1} y={leftTwinEulers.y:F1} | R x={rightTwinEulers.x:F1} y={rightTwinEulers.y:F1}  Pair order: BLE address"
@@ -980,6 +986,21 @@ namespace toio.Experiments.ToioLeftHandLab
             return "Neutral";
         }
 
+        private static string FormatTurnAxis(int axis)
+        {
+            if (axis > 0)
+            {
+                return "Right";
+            }
+
+            if (axis < 0)
+            {
+                return "Left";
+            }
+
+            return "Neutral";
+        }
+
         private void RefreshTwinPoseState(bool forceSensorRequest = false)
         {
             if (leftTwinCube != null && leftTwinCube.isConnected)
@@ -1015,7 +1036,7 @@ namespace toio.Experiments.ToioLeftHandLab
                 return "Setup: keep two cubes upright and press Connect. Twin connect retries now use CubeManager multi-connect.";
             }
 
-            return "Setup: twin upright mode ready. Cube1/Cube2 stay in BLE address order. Inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
+            return "Setup: twin upright mode ready. Cube1/Cube2 stay in BLE address order. Differential pitch drives Minecraft turn mouse. Inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
         }
 
         private static string GetCubeDebugName(Cube cube, string fallback)

@@ -45,6 +45,10 @@ namespace toio.Experiments.ToioLeftHandLab
         [SerializeField] private bool sendLeftShift = true;
         [SerializeField] private bool sendLeftControl = true;
 
+        [Header("Mouse Turn")]
+        [SerializeField] private bool sendTwinTurnMouse = true;
+        [SerializeField] private float twinTurnPixelsPerSecond = 700f;
+
         [Header("Repeat")]
         [SerializeField] private float firstRepeatDelaySeconds = 0.35f;
         [SerializeField] private float repeatIntervalSeconds = 0.08f;
@@ -59,6 +63,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private KeyRepeatState spaceState;
         private KeyRepeatState leftShiftState;
         private KeyRepeatState leftControlState;
+        private float mouseTurnResidualX;
 
         private void Awake()
         {
@@ -82,6 +87,7 @@ namespace toio.Experiments.ToioLeftHandLab
             {
                 ReleaseAllHeldKeys();
                 ResetRepeatStates();
+                mouseTurnResidualX = 0f;
                 return;
             }
 
@@ -89,6 +95,7 @@ namespace toio.Experiments.ToioLeftHandLab
             {
                 ReleaseAllHeldKeys();
                 ResetRepeatStates();
+                mouseTurnResidualX = 0f;
                 return;
             }
 
@@ -96,6 +103,7 @@ namespace toio.Experiments.ToioLeftHandLab
             {
                 ReleaseAllHeldKeys();
                 ResetRepeatStates();
+                mouseTurnResidualX = 0f;
                 return;
             }
 
@@ -107,6 +115,7 @@ namespace toio.Experiments.ToioLeftHandLab
             UpdateKey(KeyCode.Space, sendSpace && GetVirtualKey(KeyCode.Space), ref spaceState, now);
             UpdateKey(KeyCode.LeftShift, sendLeftShift && GetVirtualKey(KeyCode.LeftShift), ref leftShiftState, now);
             UpdateKey(KeyCode.LeftControl, sendLeftControl && GetVirtualKey(KeyCode.LeftControl), ref leftControlState, now);
+            UpdateTwinTurnMouse(Time.unscaledDeltaTime);
 #endif
         }
 
@@ -248,6 +257,32 @@ namespace toio.Experiments.ToioLeftHandLab
             return inputSource != null && inputSource.GetVirtualKey(keyCode);
         }
 
+        private void UpdateTwinTurnMouse(float deltaTime)
+        {
+            if (!sendTwinTurnMouse || controller == null || deltaTime <= 0f)
+            {
+                mouseTurnResidualX = 0f;
+                return;
+            }
+
+            var turnAxis = controller.TwinTurnAxis;
+            if (turnAxis == 0)
+            {
+                mouseTurnResidualX = 0f;
+                return;
+            }
+
+            mouseTurnResidualX += turnAxis * twinTurnPixelsPerSecond * deltaTime;
+            var moveX = Mathf.RoundToInt(mouseTurnResidualX);
+            if (moveX == 0)
+            {
+                return;
+            }
+
+            mouseTurnResidualX -= moveX;
+            SendMouseMove(moveX, 0);
+        }
+
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         private void SendKeyEvent(KeyCode keyCode, bool keyUp)
         {
@@ -291,6 +326,39 @@ namespace toio.Experiments.ToioLeftHandLab
                 else
                 {
                     Debug.Log($"External key {(keyUp ? "up" : "down")}: {keyCode}");
+                }
+            }
+        }
+
+        private void SendMouseMove(int deltaX, int deltaY)
+        {
+            var input = new INPUT
+            {
+                type = INPUT_MOUSE,
+                U = new InputUnion
+                {
+                    mi = new MOUSEINPUT
+                    {
+                        dx = deltaX,
+                        dy = deltaY,
+                        mouseData = 0,
+                        dwFlags = MOUSEEVENTF_MOVE,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
+
+            var sent = SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
+            if (logKeyOutput)
+            {
+                if (sent == 0)
+                {
+                    Debug.LogWarning($"External mouse move failed. Win32Error={Marshal.GetLastWin32Error()}");
+                }
+                else
+                {
+                    Debug.Log($"External mouse move: dx={deltaX} dy={deltaY}");
                 }
             }
         }
@@ -417,8 +485,10 @@ namespace toio.Experiments.ToioLeftHandLab
         private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
         private const uint INPUT_KEYBOARD = 1;
+        private const uint INPUT_MOUSE = 0;
         private const uint KEYEVENTF_KEYUP = 0x0002;
         private const uint KEYEVENTF_SCANCODE = 0x0008;
+        private const uint MOUSEEVENTF_MOVE = 0x0001;
         private const uint MAPVK_VK_TO_VSC = 0;
 #endif
     }
