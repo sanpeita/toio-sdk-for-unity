@@ -1,6 +1,12 @@
-## Toio Left Hand Lab ver1.3
+## toioLeftHandLab ver1.4
 
-toio コア キューブ 1 台または 2 台を、左手用の入力ガジェットとして試すための Unity 実験環境です。
+`toio左手ガジェット化計画 / ToioJetHand` のうち、toio コア キューブ 1 台または 2 台で Minecraft 系の左手入力を試す Unity 実験環境です。
+
+### 名称整理
+
+- 大元プロジェクト名: `toio左手ガジェット化計画` / `ToioJetHand`
+- Minecraft をツインスティック風に試す企画名: `toioLeftHandLab`
+- Blender を扱う左手ガジェット化企画名: `toioBlenderLab`
 
 ### ハッシュタグ
 
@@ -121,8 +127,8 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
 ### 開き方
 
 1. Unity Hub で `toio-sdk-unity` フォルダを開きます。
-2. `Assets/Experiments/ToioLeftHandLab/ToioLeftHandLab.unity` を開きます。
-3. 再生して、必要なモードを選んで `Connect` を押します。
+2. `Assets/Experiments/ToioLauncher/ToioLauncher.unity` から開くか、`Assets/Experiments/ToioLeftHandLab/ToioLeftHandLab.unity` を直接開きます。
+3. `toioLeftHandLab` に入って再生し、必要なモードを選んで `Connect` を押します。
 4. `twin stick mode` を試す場合は、2 台のコアキューブを近くに置いて接続します。
 5. Unity 内で `W/A/S/D` `LeftShift` `Space` `LeftCtrl` の表示を確認します。
 6. Minecraft で検証する場合は、Minecraft ウィンドウを前面にします。
@@ -132,6 +138,7 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
 
 - 画面左側の各ラベルに、選択中モードに応じたキー状態が出ます。
 - 水色ウィンドウは 2 列構成で、左に接続状態、右にキューブ詳細や補足を表示します。
+- 画面下部のボタン列から `ToioLauncher` に戻れます。
 - `1stick mode` では `Vertical Axis = W/S`, `Horizontal Axis = A/D`
 - `twin stick mode` では `W/A/S/D` に加えて `Shift(inner)` `Space(outer)` `Ctrl` `Turn(mouse)` が出ます。
 - 画面下部のテキストボックスに、検出されたキーが順に入力されます。
@@ -173,6 +180,16 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
   - `ver1.4` では差分 pitch からマウス左右移動も送る
   - 既定シーンでは `HoldWhileTilted`、`Minecraft` タイトル絞り込み、Console ログ出力を有効化済み
 
+### シーン構成
+
+- `ToioLauncher`
+  - `toio左手ガジェット化計画 / ToioJetHand` の入口シーン
+  - `toioLeftHandLab` と `toioBlenderLab` へ分岐する
+- `ToioLeftHandLab`
+  - Minecraft 系の 1stick / twin stick 実験シーン
+- `ToioBlenderLab`
+  - Blender 向け 1 台入力の専用シーン
+
 ### 前提
 
 - これはまず `Unity 内で使う仮想キー入力` を土台にしつつ、ver1.1 で Windows 外部出力、ver1.2 で Minecraft 向け調整、ver1.3 で次段階の実験に着手した実験環境です。
@@ -189,3 +206,4 @@ toio コア キューブ 1 台または 2 台を、左手用の入力ガジェ�
 - `ver1.1` はその土台の上で、Windows 外部入力まで伸ばした試作版です。
 - `ver1.2` は Minecraft の前景タイトル指定、スキャンコード優先送出、`A/D` 調整まで反映した実用確認版です。
 - `ver1.3` は 2 台接続や新モードを含む次段階の実験に着手した版です。
+- 表示名は `toio左手ガジェット化計画 / ToioJetHand`、`toioLeftHandLab`、`toioBlenderLab` に統一しています。

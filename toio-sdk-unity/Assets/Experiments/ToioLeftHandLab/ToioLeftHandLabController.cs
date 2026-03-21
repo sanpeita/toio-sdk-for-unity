@@ -2,6 +2,7 @@ using System.Linq;
 using System.Text;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using toio;
 
@@ -64,6 +65,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private Text connectButtonLabel;
         private Button oneStickModeButton;
         private Button twinStickModeButton;
+        private Button launcherButton;
         private Text modeHintLabel;
 
         private CubeManager twinCubeManager;
@@ -97,7 +99,7 @@ namespace toio.Experiments.ToioLeftHandLab
         private float nextTwinMotionSensorRequestAt;
 
         private string footerMessage =
-            "Toio Left Hand Lab ver1.4. Twin flow: connect two upright cubes together. Shared pitch gives W/S, shared roll gives A/D, differential pitch drives Minecraft turn mouse, inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
+            "toioLeftHandLab ver1.4 within toio左手ガジェット化計画 / ToioJetHand. Twin flow: connect two upright cubes together. Shared pitch gives W/S, shared roll gives A/D, differential pitch drives Minecraft turn mouse, inner tilt shows LeftShift, outer tilt shows Space, and either button shows LeftCtrl.";
 
         public bool IsConnected
         {
@@ -228,6 +230,11 @@ namespace toio.Experiments.ToioLeftHandLab
         public void OnSelectTwinStickMode()
         {
             TrySelectMode(ControlMode.TwinStick);
+        }
+
+        public void OnBackToLauncher()
+        {
+            SceneManager.LoadScene("ToioLauncher");
         }
 
         public async void OnBtnConnect()
@@ -784,7 +791,7 @@ namespace toio.Experiments.ToioLeftHandLab
             SetText(textDoubleTap, $"D: {(inputSource.DPressed ? "ON" : "off")}");
             SetText(textPose, $"Vertical Axis: {vertical:+0;-0;0}");
             SetText(textShake, $"Horizontal Axis: {horizontal:+0;-0;0}");
-            SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel} ({GetModeLabel(selectedMode)}).");
+            SetText(textPositionID, $"Intent: toio左手ガジェット化計画 / ToioJetHand - toioLeftHandLab {VersionLabel} ({GetModeLabel(selectedMode)}).");
             SetText(textStandardID, "1stick: W/S uses pitch, A/D uses roll.");
             SetText(textAngle, connected ? "Cube: ready" : "Select a mode, then press Connect.");
             SetText(textSpeed, $"Speed raw: L={inputSource.LastLeftSpeed} R={inputSource.LastRightSpeed}");
@@ -808,7 +815,7 @@ namespace toio.Experiments.ToioLeftHandLab
             SetText(textDoubleTap, $"Cube2 {GetCubeDebugName(rightTwinCube, "not connected")}: H={FormatTiltState(rightTwinTiltState)} V={FormatAxisState(EvaluateVerticalAxis(rightTwinEulers))} Btn={(rightTwinButtonPressed ? "ON" : "off")}");
             SetText(textPose, $"S: {(twinSActive ? "ON" : "off")}");
             SetText(textShake, $"D: {(twinDActive ? "ON" : "off")}");
-            SetText(textPositionID, $"Intent: left-hand toio input gadget experiment {VersionLabel} ({GetModeLabel(selectedMode)}).");
+            SetText(textPositionID, $"Intent: toio左手ガジェット化計画 / ToioJetHand - toioLeftHandLab {VersionLabel} ({GetModeLabel(selectedMode)}).");
             SetText(textStandardID, "TwinStick upright mode: W/S uses shared pitch, A/D uses shared roll, differential pitch -> Minecraft turn mouse, inner tilt -> LeftShift, outer tilt -> Space, and either button -> LeftCtrl.");
             SetText(textAngle, GetTwinSetupStatusText());
             SetText(textSpeed, $"Turn(mouse): {FormatTurnAxis(TwinTurnAxis)}  Shift(inner): {(LeftShiftPressed ? "ON" : "off")}  Space(outer): {(SpacePressed ? "ON" : "off")}  Ctrl: {(LeftControlPressed ? "ON" : "off")}");
@@ -825,7 +832,7 @@ namespace toio.Experiments.ToioLeftHandLab
 
         private void EnsureModeSelectionUi()
         {
-            if (oneStickModeButton != null && twinStickModeButton != null)
+            if (oneStickModeButton != null && twinStickModeButton != null && launcherButton != null)
             {
                 return;
             }
@@ -847,6 +854,7 @@ namespace toio.Experiments.ToioLeftHandLab
             {
                 oneStickModeButton = GameObject.Find("ModeButtonOneStick")?.GetComponent<Button>();
                 twinStickModeButton = GameObject.Find("ModeButtonTwinStick")?.GetComponent<Button>();
+                launcherButton = GameObject.Find("ModeButtonLauncher")?.GetComponent<Button>();
                 modeHintLabel = GameObject.Find("ToioModeHint")?.GetComponent<Text>();
                 return;
             }
@@ -870,7 +878,7 @@ namespace toio.Experiments.ToioLeftHandLab
                 panel,
                 font,
                 "1stick mode",
-                new Vector2(-250f, 10f),
+                new Vector2(-340f, 10f),
                 OnSelectOneStickMode
             );
             twinStickModeButton = CreateModeButton(
@@ -878,8 +886,16 @@ namespace toio.Experiments.ToioLeftHandLab
                 panel,
                 font,
                 "twin stick mode",
-                new Vector2(250f, 10f),
+                new Vector2(0f, 10f),
                 OnSelectTwinStickMode
+            );
+            launcherButton = CreateModeButton(
+                "ModeButtonLauncher",
+                panel,
+                font,
+                "Back To Launcher",
+                new Vector2(340f, 10f),
+                OnBackToLauncher
             );
         }
 
@@ -893,7 +909,7 @@ namespace toio.Experiments.ToioLeftHandLab
         )
         {
             var rect = CreateUiObject(name, parent);
-            ConfigureRect(rect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPosition, new Vector2(380f, 42f));
+            ConfigureRect(rect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), anchoredPosition, new Vector2(300f, 42f));
             var image = rect.gameObject.AddComponent<Image>();
             image.color = new Color(0.18f, 0.18f, 0.18f, 0.96f);
 

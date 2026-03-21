@@ -6,9 +6,15 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Experiments/ToioLauncher/ToioLauncher.unity
+    guid: e8eff4e931e4492695851f491d6f09bc
+  - enabled: 1
     path: Assets/toio-sdk/Tutorials/1.Basic/0.BasicScene/0.BasicScene.unity
     guid: e6ea298340acd41fd8971c8ed14186c5
   - enabled: 1
     path: Assets/Experiments/ToioLeftHandLab/ToioLeftHandLab.unity
     guid: 7f84f77777bd4b6f89da1ca34a8ea68e
+  - enabled: 1
+    path: Assets/Experiments/ToioBlenderLab/ToioBlenderLab.unity
+    guid: ac59493862014a63a0cb4c0eaac15323
   m_configObjects: {}
