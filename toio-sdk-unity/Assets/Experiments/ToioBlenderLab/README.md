@@ -203,3 +203,69 @@
 - `ver1.1` は 2 台に役割分担し、`見る` から `作り始める` へ進む最小版です。
 - 将来的に `Pan` や追加ショートカットを入れる場合も、まずはこの土台を育てる想定です。
 - 表示名は `toio左手ガジェット化計画 / ToioJetHand`、`toioLeftHandLab`、`toioBlenderLab` に統一しています。
+
+### ver1.1.1 ショート動画投稿文案ログ
+
+- 記録日: `2026-03-22`
+- 用途: `ToioBlenderLab ver1.1.1` 紹介ショート
+- 文案方針:
+  - 見せ場は `Cube 1` のビュー操作と `Cube 2` の `Solid / Material Preview` 切替
+  - `Plane / Cube` 追加は「ブリッジ経由で継続調整中」と表現し、過度に完成扱いしない
+
+#### YouTube Shorts タイトル
+
+```text
+toio 2台で Blender 左手操作を試す | ToioBlenderLab ver1.1.1 #Shorts #ToioJetHand #toio
+```
+
+#### YouTube 概要欄
+
+```text
+toio 2台で Blender を左手操作する試作、ToioBlenderLab ver1.1.1 の紹介ショートです。
+Cube 1 は Orbit / Zoom / Tab、Cube 2 は Solid / Material Preview を担当。
+Plane / Cube 追加は Blender ブリッジ経由で経路確認済み、単発精度は継続調整中です。
+
+#Shorts #ToioJetHand #左手運用試験区画 #toio #Blender #Unity
+```
+
+#### X シェア文
+
+- 想定: URL を `60` 文字前後で差し込む前提
+
+```text
+toio 2台で Blender 左手操作。ToioBlenderLab ver1.1.1 のショートです。Cube 1 は視点操作、Cube 2 は表示切替。追加機能は継続調整中。<URL> #ToioJetHand #左手運用試験区画 #toio #Blender
+```
+
+#### Facebook コミュニティ投稿文
+
+```text
+ToioBlenderLab ver1.1.1 のショートを投稿しました。
+toio コア キューブ 2台で Blender の左手操作を試していて、今回は Cube 1 の Orbit / Zoom / Tab と、Cube 2 の Solid / Material Preview 切替を中心に見せています。
+Plane / Cube 追加は Blender ブリッジ経由で経路確認済みで、単発精度は継続調整中です。
+<URL>
+
+#ToioJetHand #左手運用試験区画 #toio #Blender #Unity
+```
+
+#### toio Slack コミュニティ投稿文
+
+```text
+ToioBlenderLab ver1.1.1 のショートです。
+toio 2台で Blender の左手操作を試していて、Cube 1 で Orbit / Zoom / Tab、Cube 2 で Solid / Material Preview 切替を担当させています。
+Plane / Cube 追加は Blender ブリッジ経由で継続調整中ですが、操作の流れはかなり見えてきました。
+<URL>
+
+#ToioJetHand #左手運用試験区画 #toio #Blender
+```
+
+#### TikTok 概要欄
+
+```text
+JP:
+toio 2台で Blender を左手操作する試作です。ToioBlenderLab ver1.1.1 では Cube 1 が Orbit / Zoom / Tab、Cube 2 が Solid / Material Preview を担当。Plane / Cube 追加は Blender ブリッジ経由で継続調整中です。
+
+EN:
+This is a two-toio prototype for left-hand Blender control. In ToioBlenderLab ver1.1.1, Cube 1 handles Orbit / Zoom / Tab and Cube 2 handles Solid / Material Preview. Plane / Cube adding via the Blender bridge is still being refined.
+
+#ToioJetHand #左手運用試験区画 #toio #Blender #Unity #TikTok
+```
