@@ -103,7 +103,7 @@ namespace toio.Experiments.ToioBlenderLab
             );
             CreateText("Eyebrow", hero.transform, "toio左手ガジェット化計画 | ToioJetHand", 22, FontStyle.Bold, TextAnchor.UpperCenter, AccentColor, new Vector2(0f, 40f), new Vector2(760f, 28f));
             CreateText("Title", hero.transform, "toioBlenderLab", 42, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 0f), new Vector2(820f, 56f));
-            CreateText("Subtitle", hero.transform, "Connect one cube, switch focus to Blender, then use Orbit / Zoom / Tab from the left hand.", 20, FontStyle.Normal, TextAnchor.LowerCenter, MutedTextColor, new Vector2(0f, -36f), new Vector2(840f, 30f));
+            CreateText("Subtitle", hero.transform, "Connect two cubes. Cube 1 keeps Orbit / Zoom / Tab, and Cube 2 selects edit targets, preview modes, and executes add on button press.", 20, FontStyle.Normal, TextAnchor.LowerCenter, MutedTextColor, new Vector2(0f, -36f), new Vector2(880f, 30f));
 
             var infoPanel = CreatePanel(
                 "InfoPanel",
@@ -122,14 +122,15 @@ namespace toio.Experiments.ToioBlenderLab
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 138f),
-                new Vector2(880f, 180f),
+                new Vector2(0f, 152f),
+                new Vector2(880f, 208f),
                 CardColor
             );
-            CreateText("SectionTitle", controlsCard.transform, "toioBlenderLab Minimal Control Set", 28, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 54f), new Vector2(760f, 36f));
-            CreateText("OrbitLine", controlsCard.transform, "Orbit: roll the cube left or right to drive view orbit.", 22, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 10f), new Vector2(820f, 36f));
-            CreateText("ZoomLine", controlsCard.transform, "Zoom: pitch the cube forward or backward for fine zoom.", 22, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, -28f), new Vector2(820f, 36f));
-            CreateText("TabLine", controlsCard.transform, "Mode Toggle: press the button while the cube is neutral to send Tab.", 22, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, -66f), new Vector2(840f, 36f));
+            CreateText("SectionTitle", controlsCard.transform, "toioBlenderLab ver1.1 Minimal Control Set", 28, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 70f), new Vector2(760f, 36f));
+            CreateText("Cube1Line", controlsCard.transform, "Cube 1: roll = Orbit, pitch = Zoom, button = Tab.", 22, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 26f), new Vector2(840f, 36f));
+            CreateText("Cube2Line1", controlsCard.transform, "Cube 2: forward = Select Plane, backward = Select Cube, button = Add selected.", 22, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, -16f), new Vector2(840f, 36f));
+            CreateText("Cube2Line2", controlsCard.transform, "Cube 2: left = Solid, right = Material Preview.", 22, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, -58f), new Vector2(840f, 36f));
+            CreateText("GuardLine", controlsCard.transform, "Cube 2 selection changes on tilt; preview mode and add execute as one-shot actions.", 18, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -92f), new Vector2(860f, 32f));
 
             var runtimeCard = CreatePanel(
                 "RuntimeCard",
@@ -137,17 +138,17 @@ namespace toio.Experiments.ToioBlenderLab
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -32f),
-                new Vector2(880f, 190f),
+                new Vector2(0f, -24f),
+                new Vector2(880f, 208f),
                 CardSecondaryColor
             );
             CreateText("RuntimeTitle", runtimeCard.transform, "Cube Connection & Live Status", 28, FontStyle.Bold, TextAnchor.MiddleCenter, AccentSecondaryColor, new Vector2(0f, 68f), new Vector2(760f, 36f));
-            connectButton = CreateButton("ButtonConnectCube", runtimeCard.transform, "Connect Cube", new Vector2(0f, 18f), new Vector2(240f, 56f), AccentColor, OnConnectCube);
+            connectButton = CreateButton("ButtonConnectCube", runtimeCard.transform, "Connect Cubes", new Vector2(0f, 22f), new Vector2(260f, 56f), AccentColor, OnConnectCube);
             connectButtonLabel = connectButton.GetComponentInChildren<Text>();
-            connectionStatusLabel = CreateText("ConnectionStatus", runtimeCard.transform, string.Empty, 20, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, -26f), new Vector2(820f, 28f));
-            cubeStatusLabel = CreateText("CubeStatus", runtimeCard.transform, string.Empty, 19, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -56f), new Vector2(820f, 26f));
-            actionStatusLabel = CreateText("ActionStatus", runtimeCard.transform, string.Empty, 19, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -84f), new Vector2(840f, 26f));
-            outputStatusLabel = CreateText("OutputStatus", runtimeCard.transform, string.Empty, 19, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -112f), new Vector2(840f, 40f));
+            connectionStatusLabel = CreateText("ConnectionStatus", runtimeCard.transform, string.Empty, 20, FontStyle.Normal, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, -20f), new Vector2(840f, 28f));
+            cubeStatusLabel = CreateText("CubeStatus", runtimeCard.transform, string.Empty, 19, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -54f), new Vector2(860f, 42f));
+            actionStatusLabel = CreateText("ActionStatus", runtimeCard.transform, string.Empty, 19, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -92f), new Vector2(860f, 38f));
+            outputStatusLabel = CreateText("OutputStatus", runtimeCard.transform, string.Empty, 19, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -128f), new Vector2(860f, 42f));
 
             CreateButton("ButtonLauncher", infoPanel.transform, "Back To Launcher", new Vector2(-184f, -220f), new Vector2(280f, 70f), AccentColor, () => LoadScene(LauncherSceneName));
             CreateButton("ButtonLeftHandLab", infoPanel.transform, "Open toioLeftHandLab", new Vector2(184f, -220f), new Vector2(320f, 70f), AccentSecondaryColor, () => LoadScene(LeftHandLabSceneName));
@@ -169,7 +170,7 @@ namespace toio.Experiments.ToioBlenderLab
             {
                 connectButtonLabel.text = inputSource.IsConnecting
                     ? "Connecting..."
-                    : inputSource.IsConnected ? "Cube Connected" : "Connect Cube";
+                    : inputSource.IsConnected ? "Cubes Connected" : "Connect Cubes";
             }
 
             if (connectionStatusLabel != null)
@@ -179,14 +180,20 @@ namespace toio.Experiments.ToioBlenderLab
 
             if (cubeStatusLabel != null)
             {
-                var poseLabel = inputSource.HasPose ? inputSource.LastPose.ToString() : "Waiting";
-                cubeStatusLabel.text = $"Cube: pose={poseLabel} button={(inputSource.ButtonPressed ? "ON" : "off")} neutral={(inputSource.IsReadyForModeToggle ? "yes" : "no")}";
+                var viewPoseLabel = inputSource.HasViewCubePose ? inputSource.ViewCubePose.ToString() : "Waiting";
+                var editPoseLabel = inputSource.HasEditCubePose ? inputSource.EditCubePose.ToString() : "Waiting";
+                cubeStatusLabel.text =
+                    $"Cube 1 {ToioBlenderCubeInput.GetCubeDebugName(inputSource.ViewCube, "not connected")}: pose={viewPoseLabel} button={(inputSource.ViewCubeButtonPressed ? "ON" : "off")} neutral={(inputSource.IsReadyForModeToggle ? "yes" : "no")} | " +
+                    $"Cube 2 {ToioBlenderCubeInput.GetCubeDebugName(inputSource.EditCube, "not connected")}: pose={editPoseLabel} button={(inputSource.EditCubeButtonPressed ? "ON" : "off")}";
             }
 
             if (actionStatusLabel != null)
             {
-                var eulers = inputSource.LastEulers;
-                actionStatusLabel.text = $"Input: orbit={inputSource.OrbitAxis:+0.00;-0.00;0.00} zoom={inputSource.ZoomAxis:+0.00;-0.00;0.00} action={inputSource.CurrentActionSummary}  euler x={eulers.x:F1} y={eulers.y:F1}";
+                var viewEulers = inputSource.ViewCubeEulers;
+                var editEulers = inputSource.EditCubeEulers;
+                actionStatusLabel.text =
+                    $"Input: orbit={inputSource.OrbitAxis:+0.00;-0.00;0.00} zoom={inputSource.ZoomAxis:+0.00;-0.00;0.00} action={inputSource.CurrentActionSummary} | " +
+                    $"Cube1 x={viewEulers.x:F1} y={viewEulers.y:F1} | Cube2 x={editEulers.x:F1} y={editEulers.y:F1} | selected={inputSource.SelectedAddMacroLabel} queued={inputSource.PendingEditMacroCount} last={inputSource.LastQueuedEditMacroLabel}";
             }
 
             if (outputStatusLabel != null)

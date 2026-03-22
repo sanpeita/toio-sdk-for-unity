@@ -85,4 +85,7 @@ Assets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.m
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
+# Blender bridge runtime command log
+/BlenderBridge/toio_blender_bridge_commands.jsonl
+
 # End of https://www.toptal.com/developers/gitignore/api/unity
