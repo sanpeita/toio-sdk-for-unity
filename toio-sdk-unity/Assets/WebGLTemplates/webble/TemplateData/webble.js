@@ -67,6 +67,9 @@ function server_connect(deviceID, SERVICE_UUID, callback, disconnectCallback)
         }
         serverTable[id] = server;
         server_getPrimaryService(id, SERVICE_UUID, (serviceID, serviceUUID) => { callback(deviceID, id, serviceID, serviceUUID); });
+    })
+    .catch(error => {
+        console.error('server_connect error:', error);
     });
 }
 
@@ -88,6 +91,9 @@ function server_getPrimaryService(serverID, SERVICE_UUID, callback)
         }
         serviceTable[id] = service;
         callback(id, service.uuid);
+    })
+    .catch(error => {
+        console.error('server_getPrimaryService error:', error);
     });
 }
 
@@ -113,6 +119,9 @@ function service_getCharacteristic(serviceID, characteristicUUID, callback)
         }
         characteristicTable[id] = chara;
         callback(serviceID, id, characteristicUUID);
+    })
+    .catch(error => {
+        console.error('service_getCharacteristic error:', error);
     });
 }
 
@@ -138,6 +147,9 @@ function service_getCharacteristics(serviceID, callback)
             characteristicTable[id] = charas[i];
             callback(serviceID, charas.length, i, id, charas[i].uuid);
         }
+    })
+    .catch(error => {
+        console.error('service_getCharacteristics error:', error);
     });
 }
 
@@ -151,6 +163,9 @@ function characteristic_readValue(characteristicID, callback)
     characteristicTable[characteristicID].readValue()
     .then(response => {
         callback(characteristicID, response.buffer);
+    })
+    .catch(error => {
+        console.error('characteristic_readValue error:', error);
     });
 }
 
@@ -164,6 +179,9 @@ function characteristic_startNotifications(characteristicID, callback)
         };
         characteristicNotificationTable[characteristicID] = onchanged;
         char.addEventListener('characteristicvaluechanged', onchanged);
+    })
+    .catch(error => {
+        console.error('characteristic_startNotifications error:', error);
     });
 }
 
@@ -172,6 +190,9 @@ function characteristic_stopNotifications(characteristicID)
     characteristicTable[characteristicID].stopNotifications().then(char => {
         char.removeEventListener('characteristicvaluechanged', characteristicNotificationTable[characteristicID]);
         delete characteristicNotificationTable[characteristicID];
+    })
+    .catch(error => {
+        console.error('characteristic_stopNotifications error:', error);
     });
 }
 
