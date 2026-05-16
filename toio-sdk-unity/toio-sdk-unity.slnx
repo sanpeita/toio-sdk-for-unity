@@ -26,7 +26,6 @@
   <Project Path="UnityEditor.UI.csproj" />
   <Project Path="Unity.TextMeshPro.csproj" />
   <Project Path="Unity.VisualScripting.SettingsProvider.Editor.csproj" />
-  <Project Path="Unity.VSCode.Editor.csproj" />
   <Project Path="Unity.AI.Navigation.Updater.csproj" />
   <Project Path="ble-plugin-unity.csproj" />
   <Project Path="Unity.2D.Sprite.Editor.csproj" />
