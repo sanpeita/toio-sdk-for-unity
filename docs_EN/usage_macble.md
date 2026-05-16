@@ -65,7 +65,7 @@ Open [toio/ble-plugin-unity](https://github.com/toio/ble-plugin-unity) and click
 
 #### 2. Build bundle file
 
-Unzip the downloaded zip file and open the Xcode project file located at `bleplugin_projects/macOS/bleplugin/bleplugin.xcodeproj`. Open the project settings screen, click on "bleplugin" in the <b>TARGETS</b> list, then click on the "Build Settings" tab and open the <b>Deployment</b> settings.
+Unzip the downloaded zip file and open the Xcode project file located at `bleplugin_projects/macOS/bleplugin/bleplugin.xcodeproj`. Open the project settings screen, click on "bleplugin" in the <b>TARGETS</b> list, then click on the "Build Profiles" tab and open the <b>Deployment</b> settings.
 
 Click [macOS (version value)] in the right column of <b>macOS Deployment Target</b> in the Deployment settings, and select the OS version that you checked in the prior work.
 

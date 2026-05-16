@@ -21,7 +21,7 @@ Unity をインストールする時に iOS Build Support モジュールを追�
 
 ここでは、[toio SDK for Unity のインストール](download_sdk.md)の最後から続けて `Assets/toio-sdk/Tutorials/1.Basic/0.BasicScene/` を開いているものとして説明を進めます。
 
-まず、Unity のメニュー【ファイル】→【ビルド設定...】を選択してください。【Build Settings】の【プラットフォーム】のリストから iOS を選択し、右下の 【Switch Platform】 ボタンを押してください。
+まず、Unity のメニュー【ファイル】→【ビルドプロファイル】を選択してください。【ビルドプロファイル】の【プラットフォーム】のリストから iOS を選択し、右下の 【ターゲットの切り替え】 ボタンを押してください。
 
 <img width=632 src="res/build_ios/1.png">
 
@@ -29,7 +29,7 @@ Unity をインストールする時に iOS Build Support モジュールを追�
 
 ## Xcode プロジェクトのビルド
 
-ビルドに含みたいシーンファイルを開いている状態で、Unity のメニュー【ファイル】→【ビルド設定...】を選択してください。次に【Build Settings】の【シーンを追加】ボタンを押します。
+ビルドに含みたいシーンファイルを開いている状態で、Unity のメニュー【ファイル】→【ビルドプロファイル】を選択してください。次に【ビルドプロファイル】の【シーンを追加】ボタンを押します。
 
 <img width=632 src="res/build_ios/3.png">
 

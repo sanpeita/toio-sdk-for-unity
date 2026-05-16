@@ -24,13 +24,13 @@ Unity Visual Scriptingのバージョンは1.7.6で動作を確認していま�
 [Packages:in Project]の状態でVisual Scriptingが存在していればインストールは完了です。
 
 ## 2. ビルドのプラットフォームをPCにする
-ビルド設定をPCに設定します。この設定を行わないとCubeクラス等、一部表示されないノードがあります。
+ビルドプロファイルをPCに設定します。この設定を行わないとCubeクラス等、一部表示されないノードがあります。
 ビルド自体はios,android,WebGLでも可能ですが、Visual Scriptingでプログラムを作成している際はビルド時のプラットフォームをPCにしてください。
 1. [File]->[Build Setting]をクリックする。
-1. [Platform]のリストから[Windows]、[Mac]または[Linux]を選択肢して[Switch Platform]をクリックする。
+1. [Platform]のリストから[Windows]、[Mac]または[Linux]を選択肢して[ターゲットの切り替え]をクリックする。
 <img src="res/visual_scripting_setting/change_platform.png">
 
-[Switch Platform]を押して数秒待ち、[Windows]、[Mac]または[Linux]の横にUnityのアイコンが表示されていれば成功です。
+[ターゲットの切り替え]を押して数秒待ち、[Windows]、[Mac]または[Linux]の横にUnityのアイコンが表示されていれば成功です。
 
 ## 3. toio SDK for UnityをVisual Scriptingで利用できるようにする
 1. [Edit]->[Project Setting]->[Visual Scripting]とクリックする。

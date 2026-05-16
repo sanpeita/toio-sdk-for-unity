@@ -38,7 +38,7 @@ If you didn't add the Android Build Support module when you installed Unity, ope
 
 In this section, we will assume that you have opened `Assets/toio-sdk/Tutorials/1.Basic/0.BasicScene/` by continuing from the end of [Installing toio SDK for Unity](download_sdk.md).
 
-First, select [File] -> [Build Settings...] from Unity menu. in Unity menu. Under Build Settings, select Android from the Platform list and click the Switch Platform button on the bottom right.
+First, select [File] -> [Build Profiles] from Unity menu. in Unity menu. Under Build Profiles, select Android from the Platform list and click the Switch Platform button on the bottom right.
 
 <img width=500 src="res/build_android/2.png">
 
@@ -66,7 +66,7 @@ Go to Settings > Developer options (or, if this does not work, on some devices t
 
 ### Check the connection
 
-On the right side of the Build Settings window, click the Refresh button.<br>
+On the right side of the Build Profiles window, click the Refresh button.<br>
 Check if your device is in the device list on the left and select it.
 
 <img width=400 src="res/build_android/3.png">
@@ -78,7 +78,7 @@ Check if your device is in the device list on the left and select it.
 
 Setting IL2CPP is not mandatory, but we recommend IL2CPP, which is more efficient than Mono, since it is quite computationally intensive for controlling the motion of Cube.
 
-Open [Player Settings...] in the lower left corner of [Build Settings]. at the bottom left of [Build Settings].<br>
+Open [Player Settings...] in the lower left corner of [Build Profiles]. at the bottom left of [Build Profiles].<br>
 (Or, open the menu [Edit] -> [Project Settings...]) and select "player" on the left side).<br>
 Select the tab with the Android icon.
 
@@ -111,7 +111,7 @@ Same as [Configure IL2CPP](build_android.md#configure-il2cpp), in [Project Setti
 
 ### Build
 
-Open [Build Settings] and click [Build and Run] on the bottom right corner. Unity will build and install the app on your device and run it.
+Open [Build Profiles] and click [Build and Run] on the bottom right corner. Unity will build and install the app on your device and run it.
 
 If successful, this manual will end here. Thank you for your time.<br>
 If it fails, let's move on.
@@ -176,7 +176,7 @@ Uncheck [Android NDK Installed with Unity(recommended)] and set the [SDK path] /
 
 ### Build
 
-Open [Build Settings] and click [Build and Run] on the bottom right corner. Unity will build and install the app on your device and run it.
+Open [Build Profiles] and click [Build and Run] on the bottom right corner. Unity will build and install the app on your device and run it.
 
 If the app has been built correctly, the screen on your phone will look like this.
 
