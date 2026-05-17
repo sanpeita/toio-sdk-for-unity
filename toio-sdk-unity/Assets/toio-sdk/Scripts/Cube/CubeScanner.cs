@@ -197,7 +197,7 @@ namespace toio
                 {
                     addrs.Clear();
                     // Search for new cube object
-                    var objs = Array.ConvertAll(GameObject.FindObjectsOfType<CubeSimulator>(), sim => sim.gameObject);
+                    var objs = Array.ConvertAll(GameObject.FindObjectsByType<CubeSimulator>(FindObjectsSortMode.None), sim => sim.gameObject);
                     foreach (var obj in objs)
                     {
                         if (!obj.GetComponent<CubeSimulator>().isRunning) continue;

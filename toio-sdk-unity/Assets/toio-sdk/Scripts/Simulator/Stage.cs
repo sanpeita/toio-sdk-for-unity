@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 
 
 namespace toio.Simulator
@@ -32,12 +33,12 @@ namespace toio.Simulator
 
         void Update()
         {
-            if (Input.GetMouseButtonDown(0) && CubeInteraction.GetSCA(false,true,false))
+            if (Mouse.current.leftButton.wasPressedThisFrame && CubeInteraction.GetSCA(false,true,false))
             {
                 if (CubeInteraction.current==null)
                     OnLeftDown();
             }
-            else if (Input.GetMouseButtonDown(1) && CubeInteraction.GetSCA(false,true,false))
+            else if (Mouse.current.rightButton.wasPressedThisFrame && CubeInteraction.GetSCA(false,true,false))
             {
                 if (CubeInteraction.current==null)
                 {
@@ -45,7 +46,7 @@ namespace toio.Simulator
                     CubeInteraction.current = this;
                 }
             }
-            else if (Input.GetMouseButtonUp(1))
+            else if (Mouse.current.rightButton.wasReleasedThisFrame)
             {
                 if (CubeInteraction.current==this)
                 {
@@ -59,7 +60,7 @@ namespace toio.Simulator
             if (isDragging)
             {
                 RaycastHit hit;
-                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+                Ray ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
 
                 if (Physics.Raycast(ray, out hit) && targetPole != null) {
                     targetPole.position = new Vector3(hit.point.x, targetPole.position.y, hit.point.z);
@@ -105,10 +106,9 @@ namespace toio.Simulator
         private void OnRightDown()
         {
             var camera = Camera.main;
-            RaycastHit hit;
-            Ray ray = camera.ScreenPointToRay(Input.mousePosition);
+            Ray ray = camera.ScreenPointToRay(Mouse.current.position.ReadValue());
 
-            if (Physics.Raycast(ray, out hit)) {
+            if (Physics.Raycast(ray, out RaycastHit hit)) {
                 isDragging = true;
                 targetPole.gameObject.SetActive(true);
             }
@@ -121,11 +121,10 @@ namespace toio.Simulator
         private void OnLeftDown()
         {
             var camera = Camera.main;
-            RaycastHit hit;
-            Ray ray = camera.ScreenPointToRay(Input.mousePosition);
+            Ray ray = camera.ScreenPointToRay(Mouse.current.position.ReadValue());
 
-            if (Physics.Raycast(ray, out hit)) {
-                if (hit.transform.gameObject.tag == "Cube")
+            if (Physics.Raycast(ray, out RaycastHit hit)) {
+                if (hit.transform.gameObject.CompareTag("t4u_Cube"))
                     SetFocus(hit.transform);
                 else SetNoFocus();
             }

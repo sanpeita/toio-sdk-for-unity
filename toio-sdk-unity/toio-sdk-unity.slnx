@@ -1,5 +1,6 @@
 ﻿<Solution>
   <Project Path="Unity.Timeline.csproj" />
+  <Project Path="Unity.InputSystem.csproj" />
   <Project Path="Unity.VisualScripting.Flow.csproj" />
   <Project Path="Unity.Timeline.Editor.csproj" />
   <Project Path="Unity.Multiplayer.Center.Editor.csproj" />
@@ -30,12 +31,15 @@
   <Project Path="ble-plugin-unity.csproj" />
   <Project Path="Unity.2D.Sprite.Editor.csproj" />
   <Project Path="EditMode.csproj" />
+  <Project Path="Unity.InputSystem.DocCodeSamples.csproj" />
   <Project Path="Unity.Multiplayer.Center.Common.csproj" />
+  <Project Path="Unity.InputSystem.ForUI.csproj" />
   <Project Path="PlayMode.csproj" />
   <Project Path="bleplugin-x86_64.csproj" />
   <Project Path="UnityEditor.UI.Analytics.csproj" />
   <Project Path="UniTask.TextMeshPro.csproj" />
   <Project Path="Unity.VisualScripting.DocCodeExamples.csproj" />
+  <Project Path="Unity.InputSystem.TestFramework.csproj" />
   <Project Path="Unity.VisualScripting.Shared.Editor.csproj" />
   <Project Path="UniTask.Addressables.csproj" />
   <Project Path="UniTask.Editor.csproj" />
