@@ -16,6 +16,22 @@ var characteristicCount = 0;
 var characteristicTable = {};
 var characteristicIdTable = {};
 var characteristicNotificationTable = {};
+var characteristicOperationTable = {};
+
+function queueCharacteristicOperation(characteristicID, operation)
+{
+    if (!(characteristicID in characteristicOperationTable))
+    {
+        characteristicOperationTable[characteristicID] = Promise.resolve();
+    }
+
+    var next = characteristicOperationTable[characteristicID]
+        .catch(() => {})
+        .then(operation);
+
+    characteristicOperationTable[characteristicID] = next.then(() => {}, () => {});
+    return next;
+}
 
 // callback(int deviceID, string deviceUUID, string deviceName)
 function bluetooth_requestDevice(SERVICE_UUID, callback, errorCallback)
@@ -143,12 +159,12 @@ function service_getCharacteristics(serviceID, callback)
 
 function characteristic_writeValue(characteristicID, bytes)
 {
-    characteristicTable[characteristicID].writeValue(bytes);
+    return queueCharacteristicOperation(characteristicID, () => characteristicTable[characteristicID].writeValue(bytes));
 }
 
 function characteristic_readValue(characteristicID, callback)
 {
-    characteristicTable[characteristicID].readValue()
+    return queueCharacteristicOperation(characteristicID, () => characteristicTable[characteristicID].readValue())
     .then(response => {
         callback(characteristicID, response.buffer);
     });
@@ -157,7 +173,7 @@ function characteristic_readValue(characteristicID, callback)
 // callback(int characteristicID, byte[] data)
 function characteristic_startNotifications(characteristicID, callback)
 {
-    characteristicTable[characteristicID].startNotifications().then(char => {
+    return queueCharacteristicOperation(characteristicID, () => characteristicTable[characteristicID].startNotifications()).then(char => {
         console.log('notifications started');
         let onchanged = (event) => {
             callback(characteristicID, event.target.value.buffer);
@@ -169,7 +185,7 @@ function characteristic_startNotifications(characteristicID, callback)
 
 function characteristic_stopNotifications(characteristicID)
 {
-    characteristicTable[characteristicID].stopNotifications().then(char => {
+    return queueCharacteristicOperation(characteristicID, () => characteristicTable[characteristicID].stopNotifications()).then(char => {
         char.removeEventListener('characteristicvaluechanged', characteristicNotificationTable[characteristicID]);
         delete characteristicNotificationTable[characteristicID];
     });
