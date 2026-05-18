@@ -265,6 +265,15 @@ namespace toio
                 if (this.isScanning) return null;
                 this.isScanning = true;
                 await this.RequestDevice().Timeout(TimeSpan.FromSeconds(1));
+#if UNITY_WEBGL
+                bool cancelled = false;
+                this.Scan(null, (errMsg) => {
+                    cancelled = true;
+                });
+
+                await UniTask.Delay(1000);
+                await UniTask.WaitUntil(() => cancelled || this.scannedAddrTimes.Count(kv=>!this.peripheralDatabase[kv.Key].isConnected) > 0);
+#else
                 this.Scan();
 
                 await UniTask.Delay(1000);
@@ -274,7 +283,7 @@ namespace toio
                         return this.scannedAddrTimes.Count(kv=>!this.peripheralDatabase[kv.Key].isConnected) > 0;
                     })
                 );
-
+#endif
                 this.device?.StopScan();
                 await UniTask.Delay(100);
                 this.isScanning = false;
@@ -287,7 +296,7 @@ namespace toio
 
             public async UniTask<BLEPeripheralInterface[]> NearScan(int satisfiedNum, float waitSeconds = 3f)
             {
-#if !UNITY_EDITOR && UNITY_WEBGL
+#if UNITY_WEBGL
                 Debug.LogWarning("[CubeScanner]]NearScan doesn't run on the web");
 #endif
                 if (this.isScanning) return null;
@@ -317,23 +326,30 @@ namespace toio
 
             public async UniTask StartScan(Action<BLEPeripheralInterface[]> onScanUpdate, Action onScanEnd = null, float waitSeconds = 10f)
             {
+#if UNITY_WEBGL
+                Debug.LogWarning("[CubeScanner]]StartScan doesn't run on the web");
+#endif
                 if (this.isScanning) return;
                 this.isScanning = true;
                 await this.RequestDevice().Timeout(TimeSpan.FromSeconds(1));
                 this.Scan(onScanUpdate);
 
-                await UniTask.Delay((int)Mathf.Max(1000, waitSeconds * 1000));
+                await UniTask.WhenAny(
+                    UniTask.Delay((int)Mathf.Max(1000, waitSeconds * 1000)),
+                    UniTask.WaitUntil(() => !this.isScanning)  // Manual stop by StopScan() can also end the scan earlier than waitSeconds
+                );
                 this.StopScan();
                 onScanEnd?.Invoke();
             }
 
             public void StopScan() {
+                if (!this.isScanning) return;
                 this.device?.StopScan();
                 this.isScanning = false;
             }
 
             // --- private methods ---
-            private void Scan(Action<BLEPeripheralInterface[]> onScanUpdate = null)
+            private void Scan(Action<BLEPeripheralInterface[]> onScanUpdate = null, Action<string> errorAction = null)
             {
                 this.scannedAddrTimes.Clear();
                 string[] uuids = { CubeReal.SERVICE_ID };
@@ -382,7 +398,7 @@ namespace toio
                     }
 #endif
                     onScanUpdate?.Invoke(this.peripheralList.ToArray());
-                });
+                }, errorAction);
 
                 this.CleaningOverdated(onScanUpdate).Forget();
             }

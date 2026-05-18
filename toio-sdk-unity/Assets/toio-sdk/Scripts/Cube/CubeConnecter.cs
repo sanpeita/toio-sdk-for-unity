@@ -162,6 +162,7 @@ namespace toio
 
             public async UniTask<Cube> Connect(BLEPeripheralInterface peripheral)
             {
+                if (peripheral == null) return null;
                 try
                 {
                     // Wait for previous connection
