@@ -17,6 +17,7 @@ var characteristicTable = {};
 var characteristicIdTable = {};
 var characteristicNotificationTable = {};
 var characteristicOperationTable = {};
+var requestDevicePromise = null;
 
 function queueCharacteristicOperation(characteristicID, operation)
 {
@@ -38,8 +39,16 @@ function bluetooth_requestDevice(SERVICE_UUID, callback, errorCallback)
 {
     let options = {};
     options.filters = [ {services: [SERVICE_UUID]}, ];
-    navigator.bluetooth.requestDevice(options)
-    .then(device => {
+
+    if (!requestDevicePromise)
+    {
+        requestDevicePromise = navigator.bluetooth.requestDevice(options)
+        .finally(() => {
+            requestDevicePromise = null;
+        });
+    }
+
+    requestDevicePromise.then(device => {
         let id = deviceCount;
         if (device.id in deviceIdTable)
         {
