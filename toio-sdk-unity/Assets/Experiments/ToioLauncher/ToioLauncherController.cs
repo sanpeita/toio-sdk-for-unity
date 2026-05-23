@@ -7,9 +7,9 @@ namespace toio.Experiments.ToioLauncher
 {
     public class ToioLauncherController : MonoBehaviour
     {
-        private const string LauncherSceneName = "ToioLauncher";
         private const string LeftHandLabSceneName = "ToioLeftHandLab";
         private const string BlenderLabSceneName = "ToioBlenderLab";
+        private const string DistanceUnityLabSceneName = "ToioDistanceUnityLab";
         private const string RootName = "ToioLauncherRoot";
 
         private static readonly Color BackgroundColor = new Color(0.09f, 0.11f, 0.16f, 1f);
@@ -54,13 +54,13 @@ namespace toio.Experiments.ToioLauncher
             background.color = BackgroundColor;
 
             var header = CreatePanel("HeaderPanel", root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -84f), new Vector2(920f, 180f), PanelColor);
-            CreateText("Eyebrow", header.transform, "toio左手ガジェット化計画 | ToioJetHand", 22, FontStyle.Bold, TextAnchor.UpperCenter, AccentColor, new Vector2(0f, 52f), new Vector2(760f, 30f));
+            CreateText("Eyebrow", header.transform, "toio device experiments | ToioJetHand", 22, FontStyle.Bold, TextAnchor.UpperCenter, AccentColor, new Vector2(0f, 52f), new Vector2(760f, 30f));
             CreateText("Title", header.transform, "ToioJetHand Launcher", 42, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 8f), new Vector2(820f, 56f));
-            CreateText("Subtitle", header.transform, "Choose the dedicated scene for toioLeftHandLab or toioBlenderLab.", 22, FontStyle.Normal, TextAnchor.LowerCenter, MutedTextColor, new Vector2(0f, -42f), new Vector2(760f, 34f));
+            CreateText("Subtitle", header.transform, "Choose a dedicated scene for Minecraft input, Blender input, or Unity distance visualization.", 22, FontStyle.Normal, TextAnchor.LowerCenter, MutedTextColor, new Vector2(0f, -42f), new Vector2(760f, 34f));
 
             var card = CreatePanel("CardPanel", root.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f), new Vector2(920f, 420f), PanelColor);
             CreateText("CardHeading", card.transform, "Scene Entry Points", 28, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(-320f, 160f), new Vector2(320f, 34f));
-            CreateText("CardBody", card.transform, "The current split stays manageable inside toio左手ガジェット化計画 / ToioJetHand: ToioLauncher, toioLeftHandLab, and toioBlenderLab. If profiles grow later, we should share runtime input/output components instead of adding many entry scenes.", 22, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(-320f, 102f), new Vector2(640f, 120f));
+            CreateText("CardBody", card.transform, "The current split stays manageable inside ToioJetHand: launcher, Minecraft input, Blender input, and Unity distance visualization. If profiles grow later, share runtime input/output components instead of adding many entry scenes.", 22, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(-320f, 102f), new Vector2(640f, 132f));
 
             CreateButton(
                 "ButtonLeftHandLab",
@@ -80,8 +80,17 @@ namespace toio.Experiments.ToioLauncher
                 AccentSecondaryColor,
                 () => LoadScene(BlenderLabSceneName)
             );
+            CreateButton(
+                "ButtonDistanceUnityLab",
+                card.transform,
+                "Open DistanceUnityLab",
+                new Vector2(0f, -150f),
+                new Vector2(360f, 64f),
+                new Color(0.46f, 0.92f, 0.68f, 1f),
+                () => LoadScene(DistanceUnityLabSceneName)
+            );
 
-            CreateText("CardFooter", card.transform, "Project: toio左手ガジェット化計画 / ToioJetHand", 18, FontStyle.Normal, TextAnchor.LowerLeft, MutedTextColor, new Vector2(-320f, -176f), new Vector2(420f, 24f));
+            CreateText("CardFooter", card.transform, "Project: ToioJetHand / toio device experiments", 18, FontStyle.Normal, TextAnchor.LowerLeft, MutedTextColor, new Vector2(-320f, -202f), new Vector2(420f, 24f));
         }
 
         private static void LoadScene(string sceneName)
