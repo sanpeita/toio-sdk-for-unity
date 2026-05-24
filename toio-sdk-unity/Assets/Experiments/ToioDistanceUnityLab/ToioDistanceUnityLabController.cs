@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Text;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -12,10 +14,12 @@ namespace toio.Experiments.ToioDistanceUnityLab
     [DisallowMultipleComponent]
     public class ToioDistanceUnityLabController : MonoBehaviour
     {
+        private static readonly Encoding Utf8WithoutBom = new UTF8Encoding(false);
+
         private const string LauncherSceneName = "ToioLauncher";
         private const string BlenderLabSceneName = "ToioBlenderLab";
         private const string RootName = "ToioDistanceUnityLabRoot";
-        private const string VersionLabel = "ver0.1";
+        private const string VersionLabel = "ver0.2";
 
         private static readonly Color BackgroundColor = new Color(0.07f, 0.09f, 0.11f, 1f);
         private static readonly Color PanelColor = new Color(0.13f, 0.17f, 0.21f, 0.96f);
@@ -42,6 +46,10 @@ namespace toio.Experiments.ToioDistanceUnityLab
         [SerializeField] private float liveCubeMarkerDiameter = 0.36f;
         [SerializeField] private bool useFallbackPointsWhenMatIdMissing = true;
 
+        [Header("Blender Bridge")]
+        [SerializeField] private bool sendDistanceToBlender = true;
+        [SerializeField] private float blenderDuplicateSuppressionSeconds = 0.2f;
+
         private CubeManager cubeManager;
         private Cube cubeA;
         private Cube cubeB;
@@ -62,6 +70,10 @@ namespace toio.Experiments.ToioDistanceUnityLab
         private float capturedDistanceDots;
         private string pointASource = "--";
         private string pointBSource = "--";
+        private string blenderBridgePath = string.Empty;
+        private string blenderBridgeStatus = "Blender bridge: waiting for A/B.";
+        private float lastBlenderBridgeWriteAt = -999f;
+        private int nextBlenderBridgeCommandId = 1;
 
         private Button connectButton;
         private Text connectButtonLabel;
@@ -69,6 +81,7 @@ namespace toio.Experiments.ToioDistanceUnityLab
         private Text pointStatusLabel;
         private Text distanceStatusLabel;
         private Text captureStatusLabel;
+        private Text blenderStatusLabel;
 
         private GameObject worldRoot;
         private GameObject liveMarkerA;
@@ -96,6 +109,8 @@ namespace toio.Experiments.ToioDistanceUnityLab
             Application.runInBackground = true;
             cubeAListenerKey = $"{nameof(ToioDistanceUnityLabController)}_A_{GetInstanceID()}";
             cubeBListenerKey = $"{nameof(ToioDistanceUnityLabController)}_B_{GetInstanceID()}";
+            blenderBridgePath = ResolveBlenderBridgePath();
+            EnsureBlenderBridgeDirectory();
 
             EnsureEventSystem();
             EnsureCamera();
@@ -174,6 +189,7 @@ namespace toio.Experiments.ToioDistanceUnityLab
             capturedDistanceDots = 0f;
             pointASource = "--";
             pointBSource = "--";
+            WriteClearDistanceToBlender();
             RefreshVisualization();
             RefreshRuntimeUi();
         }
@@ -413,6 +429,129 @@ namespace toio.Experiments.ToioDistanceUnityLab
         private void RecalculateDistance()
         {
             capturedDistanceDots = hasPointA && hasPointB ? Vector2.Distance(pointA, pointB) : 0f;
+            WriteDistanceToBlender();
+        }
+
+        private string ResolveBlenderBridgePath()
+        {
+            var projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
+            if (string.IsNullOrEmpty(projectRoot))
+            {
+                return string.Empty;
+            }
+
+            return Path.Combine(projectRoot, "BlenderBridge", "toio_blender_bridge_commands.jsonl");
+        }
+
+        private void EnsureBlenderBridgeDirectory()
+        {
+            if (string.IsNullOrEmpty(blenderBridgePath))
+            {
+                blenderBridgeStatus = "Blender bridge: path missing.";
+                return;
+            }
+
+            try
+            {
+                var directory = Path.GetDirectoryName(blenderBridgePath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                blenderBridgeStatus = $"Blender bridge ready: {Path.GetFileName(blenderBridgePath)}";
+            }
+            catch (Exception ex)
+            {
+                blenderBridgeStatus = $"Blender bridge dir failed: {ex.Message}";
+            }
+        }
+
+        private void WriteDistanceToBlender()
+        {
+            if (!sendDistanceToBlender || !hasPointA || !hasPointB || capturedDistanceDots <= 0.01f)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(blenderBridgePath))
+            {
+                blenderBridgeStatus = "Blender bridge: path missing.";
+                return;
+            }
+
+            var now = Time.unscaledTime;
+            if (now - lastBlenderBridgeWriteAt < blenderDuplicateSuppressionSeconds)
+            {
+                return;
+            }
+
+            var worldA = MatToWorld(pointA, 0f);
+            var worldB = MatToWorld(pointB, 0f);
+            var unityDistance = Vector3.Distance(worldA, worldB);
+
+            var commandId = nextBlenderBridgeCommandId++;
+            var json =
+                "{" +
+                $"\"id\":{commandId}," +
+                "\"command\":\"distance_cube\"," +
+                $"\"issuedAtUtc\":\"{DateTime.UtcNow:O}\"," +
+                $"\"unityTime\":{now:F3}," +
+                $"\"frame\":{Time.frameCount}," +
+                $"\"distanceDots\":{capturedDistanceDots:F3}," +
+                $"\"distanceUnity\":{unityDistance:F3}," +
+                $"\"pointA\":{{\"matX\":{pointA.x:F3},\"matY\":{pointA.y:F3},\"worldX\":{worldA.x:F3},\"worldZ\":{worldA.z:F3},\"source\":\"{EscapeJson(pointASource)}\"}}," +
+                $"\"pointB\":{{\"matX\":{pointB.x:F3},\"matY\":{pointB.y:F3},\"worldX\":{worldB.x:F3},\"worldZ\":{worldB.z:F3},\"source\":\"{EscapeJson(pointBSource)}\"}}" +
+                "}" + Environment.NewLine;
+
+            try
+            {
+                File.AppendAllText(blenderBridgePath, json, Utf8WithoutBom);
+                lastBlenderBridgeWriteAt = now;
+                blenderBridgeStatus = $"Blender bridge sent distance #{commandId}: {capturedDistanceDots:F1} dots.";
+            }
+            catch (Exception ex)
+            {
+                blenderBridgeStatus = $"Blender bridge write failed: {ex.Message}";
+                Debug.LogException(ex);
+            }
+        }
+
+        private void WriteClearDistanceToBlender()
+        {
+            if (!sendDistanceToBlender || string.IsNullOrEmpty(blenderBridgePath))
+            {
+                return;
+            }
+
+            var now = Time.unscaledTime;
+            var commandId = nextBlenderBridgeCommandId++;
+            var json =
+                "{" +
+                $"\"id\":{commandId}," +
+                "\"command\":\"clear_distance_cube\"," +
+                $"\"issuedAtUtc\":\"{DateTime.UtcNow:O}\"," +
+                $"\"unityTime\":{now:F3}," +
+                $"\"frame\":{Time.frameCount}" +
+                "}" + Environment.NewLine;
+
+            try
+            {
+                File.AppendAllText(blenderBridgePath, json, Utf8WithoutBom);
+                blenderBridgeStatus = $"Blender bridge cleared distance #{commandId}.";
+            }
+            catch (Exception ex)
+            {
+                blenderBridgeStatus = $"Blender bridge clear failed: {ex.Message}";
+                Debug.LogException(ex);
+            }
+        }
+
+        private static string EscapeJson(string value)
+        {
+            return string.IsNullOrEmpty(value)
+                ? string.Empty
+                : value.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         private void EnsureWorld()
@@ -570,6 +709,7 @@ namespace toio.Experiments.ToioDistanceUnityLab
             var guideCard = CreatePanel("GuideCard", root.transform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), new Vector2(420f, 246f), CardColor);
             CreateText("GuideTitle", guideCard.transform, "Capture Flow", 22, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(22f, -20f), new Vector2(360f, 30f), true);
             captureStatusLabel = CreateText("CaptureStatus", guideCard.transform, string.Empty, 18, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(22f, -62f), new Vector2(360f, 110f), true);
+            blenderStatusLabel = CreateText("BlenderStatus", guideCard.transform, string.Empty, 14, FontStyle.Normal, TextAnchor.UpperLeft, DistanceColor, new Vector2(22f, -152f), new Vector2(360f, 28f), true);
             CreateButton("ButtonLauncher", guideCard.transform, "Back To Launcher", new Vector2(22f, -188f), new Vector2(176f, 44f), AccentAColor, OnBackToLauncher, true);
             CreateButton("ButtonBlenderLab", guideCard.transform, "Open BlenderLab", new Vector2(214f, -188f), new Vector2(176f, 44f), AccentBColor, OnOpenBlenderLab, true);
         }
@@ -611,8 +751,13 @@ namespace toio.Experiments.ToioDistanceUnityLab
                     "1. Put both cubes on the mat.\n" +
                     "2. Press Cube A to lock point A.\n" +
                     "3. Press Cube B to lock point B.\n" +
-                    "4. The green cube shows the distance.\n\n" +
+                    "4. Unity and Blender show the distance.\n\n" +
                     $"Buttons: A={(cubeAButtonPressed ? "ON" : "off")} / B={(cubeBButtonPressed ? "ON" : "off")}";
+            }
+
+            if (blenderStatusLabel != null)
+            {
+                blenderStatusLabel.text = blenderBridgeStatus;
             }
         }
 
