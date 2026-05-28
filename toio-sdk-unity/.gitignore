@@ -88,4 +88,9 @@ Assets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.m
 # Blender bridge runtime command log
 /BlenderBridge/toio_blender_bridge_commands.jsonl
 
+# Locally downloaded third-party texture libraries.
+# Keep these out of git because their licenses prohibit redistribution and
+# their texture payloads are too large for the SDK history.
+/[Aa]ssets/[Ee]xternal/VFX_Texture_Library*/
+
 # End of https://www.toptal.com/developers/gitignore/api/unity

@@ -40,5 +40,6 @@ Implemented on 2026-05-23 for the weekend device short. Extended on 2026-05-24 f
 
 - The Windows BLE plugin can crash Unity during scene transitions or Bluetooth update timing. For recording, open the target scene directly when stability matters.
 - For Blender output, run `BlenderBridge/toio_blender_command_bridge.py` inside Blender before pressing A/B in Unity.
+- `ToioDistanceUnityLab/VFX_Texture_Library_README.md` records the 2026-05-28 local intake of C&R Creative Studios' free VFX texture library. The actual library payload is kept under `Assets/External/VFX_Texture_Library_v1.0.0` and ignored by git.
 - Future update candidate: save the bridge bootstrap into a dedicated `.blend` file so the JSONL watcher starts automatically when that Blender file is opened. Until then, run the script once per Blender session.
 - If Unity project files are regenerated, `Assembly-CSharp.csproj` may be temporary and should not be treated as the source of truth.

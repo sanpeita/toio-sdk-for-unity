@@ -66,5 +66,6 @@ Two toio cubes define A and B. Unity shows the distance immediately, and Blender
 
 - This scene keeps the Unity distance cube as-is and adds Blender output through the bridge.
 - The next step is visual polish: tune bevel width, material colors, camera framing, or add measurement ticks.
+- Local VFX texture polish notes are in `VFX_Texture_Library_README.md`. The downloaded texture payload is copied under `Assets/External/VFX_Texture_Library_v1.0.0` for local Unity use, but is intentionally ignored by git because the source license prohibits redistribution.
 - Future update candidate: create a dedicated `.blend` file with the bridge bootstrap saved into it, so `toio_blender_command_bridge.py` does not need to be manually run every time Blender starts.
 - The Windows BLE plugin may be unstable during scene transition. If recording stability matters, open `ToioDistanceUnityLab.unity` directly.
