@@ -16,6 +16,7 @@ This folder contains Unotchi's toio device experiment scenes.
 | `ToioLeftHandLab` | `Assets/Experiments/ToioLeftHandLab/ToioLeftHandLab.unity` | toio left-hand input experiment for Minecraft/WASD-style control. |
 | `ToioBlenderLab` | `Assets/Experiments/ToioBlenderLab/ToioBlenderLab.unity` | toio input experiment for Blender operation and Blender bridge work. |
 | `ToioDistanceUnityLab` | `Assets/Experiments/ToioDistanceUnityLab/ToioDistanceUnityLab.unity` | Two-cube A/B capture scene that visualizes the distance as a Unity cube. |
+| `ToioTacticalField` | `Assets/Experiments/ToioTacticalField/ToioTacticalField.unity` | Ordia tabletop auto-tactics prototype. Phase 1 observes start and goal anchors with one cube. |
 
 ## Implemented Notes
 
@@ -35,6 +36,16 @@ Implemented on 2026-05-23 for the weekend device short. Extended on 2026-05-24 f
   - A/B distance cube generation without a mat.
   - A/B distance cube generation with a simple mat.
   - Re-capture after moving A/B with mat reaction.
+
+### ToioTacticalField
+
+Implemented on 2026-05-30 as Phase 1 of the Ordia tabletop auto-tactics line.
+
+- Connects one observation toio Core Cube.
+- First physical button press captures the start anchor.
+- Second physical button press captures the goal anchor.
+- Unity displays both anchors and the observed start-to-goal axis.
+- Real device and mat capture still need an on-device check.
 
 ## Operation Notes
 

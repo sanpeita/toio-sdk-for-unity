@@ -20,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Experiments/ToioDistanceUnityLab/ToioDistanceUnityLab.unity
     guid: a125aa2bbea8434ba6064115358ba2a4
+  - enabled: 1
+    path: Assets/Experiments/ToioTacticalField/ToioTacticalField.unity
+    guid: e649774233734ae892a32178f61454bf
   m_configObjects: {}
