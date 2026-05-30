@@ -54,53 +54,54 @@ namespace toio.Experiments.ToioLauncher
             var background = root.AddComponent<Image>();
             background.color = BackgroundColor;
 
-            var header = CreatePanel("HeaderPanel", root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -84f), new Vector2(920f, 180f), PanelColor);
-            CreateText("Eyebrow", header.transform, "toio device experiments | ToioJetHand", 22, FontStyle.Bold, TextAnchor.UpperCenter, AccentColor, new Vector2(0f, 52f), new Vector2(760f, 30f));
-            CreateText("Title", header.transform, "ToioJetHand Launcher", 42, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 8f), new Vector2(820f, 56f));
-            CreateText("Subtitle", header.transform, "Choose a dedicated scene for Minecraft input, Blender input, Unity distance visualization, or Ordia tabletop tactics.", 22, FontStyle.Normal, TextAnchor.LowerCenter, MutedTextColor, new Vector2(0f, -42f), new Vector2(760f, 34f));
+            var header = CreatePanel("HeaderPanel", root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(1320f, 148f), PanelColor);
+            CreateText("Eyebrow", header.transform, "toio device experiments | ToioJetHand", 18, FontStyle.Bold, TextAnchor.UpperCenter, AccentColor, new Vector2(0f, 46f), new Vector2(1120f, 26f));
+            CreateText("Title", header.transform, "ToioJetHand Launcher", 38, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 8f), new Vector2(1120f, 48f));
+            CreateText("Subtitle", header.transform, "Choose one experiment scene. Each entry stays small enough to test and record independently.", 18, FontStyle.Normal, TextAnchor.LowerCenter, MutedTextColor, new Vector2(0f, -38f), new Vector2(1120f, 28f));
 
-            var card = CreatePanel("CardPanel", root.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f), new Vector2(920f, 520f), PanelColor);
-            CreateText("CardHeading", card.transform, "Scene Entry Points", 28, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(-320f, 160f), new Vector2(320f, 34f));
-            CreateText("CardBody", card.transform, "The current split stays manageable inside ToioJetHand: launcher, Minecraft input, Blender input, and Unity distance visualization. If profiles grow later, share runtime input/output components instead of adding many entry scenes.", 22, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(-320f, 102f), new Vector2(640f, 132f));
+            var card = CreatePanel("CardPanel", root.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -74f), new Vector2(1320f, 618f), PanelColor);
+            CreateText("CardHeading", card.transform, "Scene Entry Points", 26, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 258f), new Vector2(1120f, 34f));
+            CreateText("CardBody", card.transform, "Input experiments", 18, FontStyle.Bold, TextAnchor.MiddleCenter, AccentColor, new Vector2(-310f, 212f), new Vector2(560f, 26f));
+            CreateText("TacticsHeading", card.transform, "Observation experiments", 18, FontStyle.Bold, TextAnchor.MiddleCenter, new Color(0.58f, 0.82f, 0.68f, 1f), new Vector2(310f, 212f), new Vector2(560f, 26f));
 
             CreateButton(
                 "ButtonLeftHandLab",
                 card.transform,
-                "Open toioLeftHandLab",
-                new Vector2(-210f, -78f),
-                new Vector2(320f, 76f),
+                "Minecraft Input\nOpen toioLeftHandLab",
+                new Vector2(-310f, 128f),
+                new Vector2(540f, 112f),
                 AccentColor,
                 () => LoadScene(LeftHandLabSceneName)
             );
             CreateButton(
                 "ButtonBlenderLab",
                 card.transform,
-                "Open toioBlenderLab",
-                new Vector2(210f, -78f),
-                new Vector2(320f, 76f),
+                "Blender Input\nOpen toioBlenderLab",
+                new Vector2(-310f, -22f),
+                new Vector2(540f, 112f),
                 AccentSecondaryColor,
                 () => LoadScene(BlenderLabSceneName)
             );
             CreateButton(
                 "ButtonDistanceUnityLab",
                 card.transform,
-                "Open DistanceUnityLab",
-                new Vector2(0f, -150f),
-                new Vector2(360f, 64f),
+                "Two-Point Distance\nOpen DistanceUnityLab",
+                new Vector2(310f, 128f),
+                new Vector2(540f, 112f),
                 new Color(0.46f, 0.92f, 0.68f, 1f),
                 () => LoadScene(DistanceUnityLabSceneName)
             );
             CreateButton(
                 "ButtonTacticalField",
                 card.transform,
-                "Open TacticalField",
-                new Vector2(0f, -212f),
-                new Vector2(360f, 52f),
+                "Ordia Tactical Field\nOpen TacticalField",
+                new Vector2(310f, -22f),
+                new Vector2(540f, 112f),
                 new Color(0.58f, 0.76f, 0.66f, 1f),
                 () => LoadScene(TacticalFieldSceneName)
             );
 
-            CreateText("CardFooter", card.transform, "Project: ToioJetHand / toio device experiments", 18, FontStyle.Normal, TextAnchor.LowerLeft, MutedTextColor, new Vector2(-320f, -248f), new Vector2(420f, 24f));
+            CreateText("CardFooter", card.transform, "For recording stability, open the target scene directly if BLE scene transitions become unstable.", 16, FontStyle.Normal, TextAnchor.MiddleCenter, MutedTextColor, new Vector2(0f, -240f), new Vector2(1120f, 24f));
         }
 
         private static void LoadScene(string sceneName)
@@ -154,7 +155,10 @@ namespace toio.Experiments.ToioLauncher
             var canvasObject = new GameObject("Canvas");
             var canvas = canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            var scaler = canvasObject.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1600f, 900f);
+            scaler.matchWidthOrHeight = 0.5f;
             canvasObject.AddComponent<GraphicRaycaster>();
         }
 
