@@ -14,7 +14,7 @@ namespace toio.Experiments.ToioTacticalField
     {
         private const string LauncherSceneName = "ToioLauncher";
         private const string RootName = "ToioTacticalFieldRoot";
-        private const string VersionLabel = "Phase 1";
+        private const string VersionLabel = "Phase 1.1";
 
         private static readonly Color BackgroundColor = new Color(0.055f, 0.075f, 0.07f, 1f);
         private static readonly Color PanelColor = new Color(0.105f, 0.145f, 0.13f, 0.97f);
@@ -39,6 +39,11 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private float observationDiameter = 0.38f;
         [SerializeField] private bool useFallbackPointsWhenMatIdMissing = true;
 
+        [Header("Straight Transporter Victory")]
+        [SerializeField] private float transporterStartToleranceMatDots = 28f;
+        [SerializeField] private float transporterGoalToleranceMatDots = 18f;
+        [SerializeField] private int transporterMaxSpeed = 70;
+
         private CubeManager cubeManager;
         private Cube observationCube;
         private string observationListenerKey;
@@ -47,6 +52,8 @@ namespace toio.Experiments.ToioTacticalField
         private bool hasLivePoint;
         private bool hasStartAnchor;
         private bool hasGoalAnchor;
+        private bool isTransporterMoving;
+        private bool transporterGoalReached;
         private Vector2 livePoint;
         private Vector2 startAnchor;
         private Vector2 goalAnchor;
@@ -58,6 +65,7 @@ namespace toio.Experiments.ToioTacticalField
         private Text connectionStatusLabel;
         private Text observationStatusLabel;
         private Text anchorStatusLabel;
+        private Text victoryStatusLabel;
         private GameObject observationMarker;
         private GameObject startMarker;
         private GameObject goalMarker;
@@ -85,6 +93,7 @@ namespace toio.Experiments.ToioTacticalField
         private void Update()
         {
             RefreshLivePoint();
+            RefreshTransporterArrival();
             RefreshRuntimeUi();
             RefreshVisualization();
         }
@@ -140,11 +149,54 @@ namespace toio.Experiments.ToioTacticalField
         {
             hasStartAnchor = false;
             hasGoalAnchor = false;
+            isTransporterMoving = false;
+            transporterGoalReached = false;
             startSource = "--";
             goalSource = "--";
             observationMessage = "Awaiting start anchor observation.";
             RefreshRuntimeUi();
             RefreshVisualization();
+        }
+
+        public void OnRunTransporter()
+        {
+            if (!IsCubeConnected)
+            {
+                observationMessage = "Connect the observation cube before running the Transporter.";
+                return;
+            }
+
+            if (!hasStartAnchor || !hasGoalAnchor)
+            {
+                observationMessage = "Capture the start and goal anchors before running the Transporter.";
+                return;
+            }
+
+            if (!CaptureLivePoint(observationCube))
+            {
+                observationMessage = "No readable mat position. Place the cube at the observed start anchor.";
+                return;
+            }
+
+            var startDistance = Vector2.Distance(livePoint, startAnchor);
+            if (startDistance > transporterStartToleranceMatDots)
+            {
+                observationMessage = $"Return the same cube to the start anchor before running. Distance: {startDistance:F1} mat dots.";
+                return;
+            }
+
+            isTransporterMoving = true;
+            transporterGoalReached = false;
+            observationMessage = "Transporter advancing directly to the observed goal...";
+            observationCube.TargetMove(
+                Mathf.RoundToInt(goalAnchor.x),
+                Mathf.RoundToInt(goalAnchor.y),
+                observationCube.angle,
+                configID: 1,
+                targetMoveType: Cube.TargetMoveType.RoundBeforeMove,
+                maxSpd: transporterMaxSpeed
+            );
+            RefreshRuntimeUi();
         }
 
         public void OnBackToLauncher()
@@ -296,11 +348,30 @@ namespace toio.Experiments.ToioTacticalField
                 goalAnchor = point;
                 goalSource = source;
                 hasGoalAnchor = true;
-                observationMessage = "Goal anchor locked. Coordinate axis confirmed. Phase 1 observation complete.";
+                isTransporterMoving = false;
+                transporterGoalReached = false;
+                observationMessage = "Goal anchor locked. Return the same cube to start, then press Run Transporter.";
             }
 
             RefreshRuntimeUi();
             RefreshVisualization();
+        }
+
+        private void RefreshTransporterArrival()
+        {
+            if (!isTransporterMoving || !hasLivePoint || !hasGoalAnchor)
+            {
+                return;
+            }
+
+            if (Vector2.Distance(livePoint, goalAnchor) > transporterGoalToleranceMatDots)
+            {
+                return;
+            }
+
+            isTransporterMoving = false;
+            transporterGoalReached = true;
+            observationMessage = "GOAL REACHED. Straight Transporter victory confirmed.";
         }
 
         private void EnsureWorld()
@@ -376,18 +447,20 @@ namespace toio.Experiments.ToioTacticalField
 
             var header = CreatePanel("Header", root.transform, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(900f, 104f), PanelColor);
             CreateText("Title", header.transform, "toio Tactical Field | Ordia Deskfront", 31, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 15f), new Vector2(820f, 40f));
-            CreateText("Phase", header.transform, $"{VersionLabel} | Start / Goal Observation", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, -23f), new Vector2(820f, 26f));
+            CreateText("Phase", header.transform, $"{VersionLabel} | Observation / Straight Transporter Victory", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, -23f), new Vector2(820f, 26f));
 
-            var status = CreatePanel("Status", root.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 302f), CardColor, true);
+            var status = CreatePanel("Status", root.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 356f), CardColor, true);
             connectionStatusLabel = CreateText("Connection", status.transform, string.Empty, 16, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -18f), new Vector2(410f, 58f), true);
             observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -96f), new Vector2(410f, 72f), true);
             anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 16, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -190f), new Vector2(410f, 88f), true);
+            victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 24, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -292f), new Vector2(410f, 40f), true);
 
-            var actions = CreatePanel("Actions", root.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 302f), CardColor, false, true);
-            CreateButton("Connect", actions.transform, "Connect Observation Cube", new Vector2(0f, -44f), new Vector2(276f, 52f), StartColor, OnConnectObservationCube, true);
-            CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -112f), new Vector2(276f, 52f), GoalColor, OnCaptureCurrentAnchor, true);
-            CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -180f), new Vector2(276f, 46f), LineColor, OnClearAnchors, true);
-            CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -240f), new Vector2(276f, 40f), MutedTextColor, OnBackToLauncher, true);
+            var actions = CreatePanel("Actions", root.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 356f), CardColor, false, true);
+            CreateButton("Connect", actions.transform, "Connect Observation Cube", new Vector2(0f, -34f), new Vector2(276f, 48f), StartColor, OnConnectObservationCube, true);
+            CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -94f), new Vector2(276f, 48f), GoalColor, OnCaptureCurrentAnchor, true);
+            CreateButton("Run", actions.transform, "Run Transporter", new Vector2(0f, -154f), new Vector2(276f, 48f), StartColor, OnRunTransporter, true);
+            CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -214f), new Vector2(276f, 44f), LineColor, OnClearAnchors, true);
+            CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -268f), new Vector2(276f, 40f), MutedTextColor, OnBackToLauncher, true);
         }
 
         private void RefreshRuntimeUi()
@@ -403,6 +476,7 @@ namespace toio.Experiments.ToioTacticalField
                 $"Start: {(hasStartAnchor ? FormatPoint(startAnchor, startSource) : "--")}\n" +
                 $"Goal:  {(hasGoalAnchor ? FormatPoint(goalAnchor, goalSource) : "--")}\n" +
                 $"Axis:  {(hasStartAnchor && hasGoalAnchor ? $"{Vector2.Distance(startAnchor, goalAnchor):F1} mat dots" : "--")}";
+            victoryStatusLabel.text = transporterGoalReached ? "GOAL REACHED" : string.Empty;
         }
 
         private static string FormatPoint(Vector2 point, string source)
