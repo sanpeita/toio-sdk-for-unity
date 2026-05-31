@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -14,7 +15,9 @@ namespace toio.Experiments.ToioTacticalField
     {
         private const string LauncherSceneName = "ToioLauncher";
         private const string RootName = "ToioTacticalFieldRoot";
-        private const string VersionLabel = "Phase 1.1";
+        private const string VersionLabel = "Phase 2.0";
+        private const int TacticalFieldColumns = 5;
+        private const int TacticalFieldRows = 7;
 
         private static readonly Color BackgroundColor = new Color(0.055f, 0.075f, 0.07f, 1f);
         private static readonly Color PanelColor = new Color(0.105f, 0.145f, 0.13f, 0.97f);
@@ -22,6 +25,9 @@ namespace toio.Experiments.ToioTacticalField
         private static readonly Color StartColor = new Color(0.38f, 0.9f, 0.7f, 1f);
         private static readonly Color GoalColor = new Color(0.95f, 0.72f, 0.34f, 1f);
         private static readonly Color LineColor = new Color(0.58f, 0.76f, 0.66f, 1f);
+        private static readonly Color GridColor = new Color(0.2f, 0.54f, 0.42f, 0.76f);
+        private static readonly Color GridStartColor = new Color(0.28f, 0.78f, 0.58f, 0.9f);
+        private static readonly Color GridGoalColor = new Color(0.92f, 0.62f, 0.24f, 0.9f);
         private static readonly Color TextColor = new Color(0.93f, 0.98f, 0.94f, 1f);
         private static readonly Color MutedTextColor = new Color(0.68f, 0.78f, 0.7f, 1f);
 
@@ -38,6 +44,10 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private float anchorDiameter = 0.82f;
         [SerializeField] private float observationDiameter = 0.38f;
         [SerializeField] private bool useFallbackPointsWhenMatIdMissing = true;
+
+        [Header("Tactical Field Convert")]
+        [SerializeField] private float tacticalCellHeight = 0.12f;
+        [SerializeField] private float tacticalCellFillRatio = 0.88f;
 
         [Header("Straight Transporter Victory")]
         [SerializeField] private float transporterStartToleranceMatDots = 28f;
@@ -61,6 +71,7 @@ namespace toio.Experiments.ToioTacticalField
         private string goalSource = "--";
         private string connectionMessage = "Not connected. Press Connect Observation Cube.";
         private string observationMessage = "Awaiting start anchor observation.";
+        private string tacticalFieldMessage = "Field: awaiting anchor conversion.";
 
         private Text connectionStatusLabel;
         private Text observationStatusLabel;
@@ -70,6 +81,9 @@ namespace toio.Experiments.ToioTacticalField
         private GameObject startMarker;
         private GameObject goalMarker;
         private GameObject observationLine;
+        private Transform tacticalFieldRoot;
+        private readonly List<GameObject> tacticalFieldCells = new List<GameObject>();
+        private Vector2[] tacticalCellPoints = Array.Empty<Vector2>();
 
         private bool IsCubeConnected => observationCube != null && observationCube.isConnected;
 
@@ -151,11 +165,36 @@ namespace toio.Experiments.ToioTacticalField
             hasGoalAnchor = false;
             isTransporterMoving = false;
             transporterGoalReached = false;
+            ClearTacticalField();
             startSource = "--";
             goalSource = "--";
             observationMessage = "Awaiting start anchor observation.";
             RefreshRuntimeUi();
             RefreshVisualization();
+        }
+
+        public void OnConvertTacticalField()
+        {
+            if (!hasStartAnchor || !hasGoalAnchor)
+            {
+                tacticalFieldMessage = "Field: capture start and goal anchors before conversion.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            var axis = goalAnchor - startAnchor;
+            if (axis.sqrMagnitude <= Mathf.Epsilon)
+            {
+                tacticalFieldMessage = "Field: start and goal anchors must be different points.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            tacticalCellPoints = GenerateTacticalCellPoints(startAnchor, goalAnchor);
+            RenderTacticalField(tacticalCellPoints);
+            tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | {TacticalFieldColumns} x {TacticalFieldRows}";
+            observationMessage = "Observed axis converted into the Ordia tactical field.";
+            RefreshRuntimeUi();
         }
 
         public void OnRunTransporter()
@@ -336,6 +375,7 @@ namespace toio.Experiments.ToioTacticalField
 
             if (!hasStartAnchor || hasGoalAnchor)
             {
+                ClearTacticalField();
                 startAnchor = point;
                 startSource = source;
                 hasStartAnchor = true;
@@ -345,6 +385,7 @@ namespace toio.Experiments.ToioTacticalField
             }
             else
             {
+                ClearTacticalField();
                 goalAnchor = point;
                 goalSource = source;
                 hasGoalAnchor = true;
@@ -391,6 +432,72 @@ namespace toio.Experiments.ToioTacticalField
             observationLine.name = "ObservedAxis";
             observationLine.transform.SetParent(worldRoot.transform);
             observationLine.GetComponent<Renderer>().material = CreateMaterial("MAT_ObservedAxis", LineColor);
+            tacticalFieldRoot = new GameObject("ConvertedTacticalField").transform;
+            tacticalFieldRoot.SetParent(worldRoot.transform);
+        }
+
+        private Vector2[] GenerateTacticalCellPoints(Vector2 start, Vector2 goal)
+        {
+            var forward = (goal - start).normalized;
+            var right = new Vector2(-forward.y, forward.x);
+            var cellSize = Vector2.Distance(start, goal) / TacticalFieldRows;
+            var points = new Vector2[TacticalFieldColumns * TacticalFieldRows];
+            var index = 0;
+            for (var row = 0; row < TacticalFieldRows; row++)
+            {
+                for (var column = 0; column < TacticalFieldColumns; column++)
+                {
+                    var centeredColumn = column - (TacticalFieldColumns - 1) * 0.5f;
+                    points[index++] =
+                        start +
+                        forward * ((row + 0.5f) * cellSize) +
+                        right * (centeredColumn * cellSize);
+                }
+            }
+
+            return points;
+        }
+
+        private void RenderTacticalField(Vector2[] points)
+        {
+            DestroyTacticalFieldCells();
+            var cellSize = Vector2.Distance(startAnchor, goalAnchor) / TacticalFieldRows;
+            var worldCellSize = cellSize * matToUnityScale * tacticalCellFillRatio;
+            var worldForward = MatToWorld(goalAnchor, tacticalCellHeight) - MatToWorld(startAnchor, tacticalCellHeight);
+            var rotation = Quaternion.LookRotation(worldForward);
+            for (var index = 0; index < points.Length; index++)
+            {
+                var row = index / TacticalFieldColumns;
+                var cell = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cell.name = $"TacticalCell_{index % TacticalFieldColumns}_{row}";
+                cell.transform.SetParent(tacticalFieldRoot);
+                cell.transform.position = MatToWorld(points[index], tacticalCellHeight);
+                cell.transform.rotation = rotation;
+                cell.transform.localScale = new Vector3(worldCellSize, tacticalCellHeight, worldCellSize);
+                var color = row == 0 ? GridStartColor : row == TacticalFieldRows - 1 ? GridGoalColor : GridColor;
+                cell.GetComponent<Renderer>().material = CreateMaterial($"MAT_{cell.name}", color);
+                tacticalFieldCells.Add(cell);
+            }
+        }
+
+        private void ClearTacticalField()
+        {
+            DestroyTacticalFieldCells();
+            tacticalCellPoints = Array.Empty<Vector2>();
+            tacticalFieldMessage = "Field: awaiting anchor conversion.";
+        }
+
+        private void DestroyTacticalFieldCells()
+        {
+            foreach (var cell in tacticalFieldCells)
+            {
+                if (cell != null)
+                {
+                    Destroy(cell);
+                }
+            }
+
+            tacticalFieldCells.Clear();
         }
 
         private void RefreshVisualization()
@@ -443,24 +550,25 @@ namespace toio.Experiments.ToioTacticalField
 
             var root = CreateUiObject(RootName, canvas.transform);
             StretchFull(root.GetComponent<RectTransform>());
-            root.AddComponent<Image>().color = BackgroundColor;
+            root.AddComponent<Image>().color = new Color(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 0.62f);
 
             var header = CreatePanel("Header", root.transform, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(900f, 104f), PanelColor);
             CreateText("Title", header.transform, "toio Tactical Field | Ordia Deskfront", 31, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 15f), new Vector2(820f, 40f));
-            CreateText("Phase", header.transform, $"{VersionLabel} | Observation / Straight Transporter Victory", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, -23f), new Vector2(820f, 26f));
+            CreateText("Phase", header.transform, $"{VersionLabel} | Tactical Field Convert", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, -23f), new Vector2(820f, 26f));
 
-            var status = CreatePanel("Status", root.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 356f), CardColor, true);
+            var status = CreatePanel("Status", root.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 382f), CardColor, true);
             connectionStatusLabel = CreateText("Connection", status.transform, string.Empty, 16, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -18f), new Vector2(410f, 58f), true);
             observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -96f), new Vector2(410f, 72f), true);
-            anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 16, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -190f), new Vector2(410f, 88f), true);
-            victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 24, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -292f), new Vector2(410f, 40f), true);
+            anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 16, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -190f), new Vector2(410f, 112f), true);
+            victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 24, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -318f), new Vector2(410f, 40f), true);
 
-            var actions = CreatePanel("Actions", root.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 356f), CardColor, false, true);
-            CreateButton("Connect", actions.transform, "Connect Observation Cube", new Vector2(0f, -34f), new Vector2(276f, 48f), StartColor, OnConnectObservationCube, true);
-            CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -94f), new Vector2(276f, 48f), GoalColor, OnCaptureCurrentAnchor, true);
-            CreateButton("Run", actions.transform, "Run Transporter", new Vector2(0f, -154f), new Vector2(276f, 48f), StartColor, OnRunTransporter, true);
-            CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -214f), new Vector2(276f, 44f), LineColor, OnClearAnchors, true);
-            CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -268f), new Vector2(276f, 40f), MutedTextColor, OnBackToLauncher, true);
+            var actions = CreatePanel("Actions", root.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 382f), CardColor, false, true);
+            CreateButton("Connect", actions.transform, "Connect Observation Cube", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
+            CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnCaptureCurrentAnchor, true);
+            CreateButton("Convert", actions.transform, "Convert Tactical Field", new Vector2(0f, -130f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
+            CreateButton("Run", actions.transform, "Run Transporter", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
+            CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
+            CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -282f), new Vector2(276f, 38f), MutedTextColor, OnBackToLauncher, true);
         }
 
         private void RefreshRuntimeUi()
@@ -475,7 +583,8 @@ namespace toio.Experiments.ToioTacticalField
             anchorStatusLabel.text =
                 $"Start: {(hasStartAnchor ? FormatPoint(startAnchor, startSource) : "--")}\n" +
                 $"Goal:  {(hasGoalAnchor ? FormatPoint(goalAnchor, goalSource) : "--")}\n" +
-                $"Axis:  {(hasStartAnchor && hasGoalAnchor ? $"{Vector2.Distance(startAnchor, goalAnchor):F1} mat dots" : "--")}";
+                $"Axis:  {(hasStartAnchor && hasGoalAnchor ? $"{Vector2.Distance(startAnchor, goalAnchor):F1} mat dots" : "--")}\n" +
+                tacticalFieldMessage;
             victoryStatusLabel.text = transporterGoalReached ? "GOAL REACHED" : string.Empty;
         }
 
@@ -501,7 +610,7 @@ namespace toio.Experiments.ToioTacticalField
 
         private static Material CreateMaterial(string name, Color color)
         {
-            var shader = Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
+            var shader = Shader.Find("Unlit/Color") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
             var material = new Material(shader) { name = name, color = color };
             return material;
         }

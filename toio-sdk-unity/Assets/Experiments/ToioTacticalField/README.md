@@ -2,14 +2,14 @@
 
 ## Purpose
 
-`ToioTacticalField` is the Ordia tabletop auto-tactics prototype scene. Phase 1.1 records a start anchor and a goal anchor from one observation toio Core Cube, then reuses the same cube as a straight-line Transporter.
+`ToioTacticalField` is the Ordia tabletop auto-tactics prototype scene. Phase 2.0 converts a start anchor and a goal anchor from one observation toio Core Cube into a fixed `5 x 7` tactical grid. The Phase 1.1 straight-line Transporter victory remains available.
 
 ## Scene
 
 - Scene: `Assets/Experiments/ToioTacticalField/ToioTacticalField.unity`
 - Launcher entry: `ToioLauncher -> Open TacticalField`
 - Device: one observation / Transporter toio Core Cube
-- Current boundary: Phase 1.1 `Straight Transporter Victory`
+- Current boundary: Phase 2.0 `Tactical Field Convert`
 
 ## Implemented Features
 
@@ -20,7 +20,11 @@
 - Provides `Capture Current Anchor` as a recording fallback and demo coordinates when the mat ID is unavailable.
 - Reuses the observation cube as a Transporter and sends it directly to the observed goal with `Cube.TargetMove`.
 - Shows `GOAL REACHED` when the live mat position reaches the goal tolerance.
-- Leaves Phase 2 grid generation and Phase 3 grid-step Transporter movement for later increments.
+- Converts the observed axis into a fixed `5 x 7` Unity grid when `Convert Tactical Field` is pressed.
+- Rotates the generated grid to follow the observed start-to-goal direction.
+- Uses start-side and goal-side colors to keep the generated battlefield readable.
+- Clears stale grid cells when anchors are cleared or recaptured.
+- Leaves Phase 3 grid-step Transporter movement for the next increment.
 
 ## How To Use
 
@@ -29,9 +33,11 @@
 3. Press `Connect Observation Cube`.
 4. Put the cube at the start anchor and press its physical button.
 5. Move the same cube to the goal anchor and press its physical button again.
-6. Return the same cube to the start anchor.
-7. Press `Run Transporter`.
-8. Check the physical cube movement and Unity `GOAL REACHED` display.
+6. Press `Convert Tactical Field`.
+7. Check that a `5 x 7` grid appears and follows the observed axis.
+8. Return the same cube to the start anchor.
+9. Press `Run Transporter`.
+10. Check the physical cube movement and Unity `GOAL REACHED` display.
 
 If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to verify the screen flow with fallback coordinates.
 
@@ -39,6 +45,8 @@ If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to 
 
 - Confirmed by static implementation review: scene wiring, launcher wiring, Build Settings registration, and Unity batch compilation.
 - Confirmed on device: real cube connection, real mat coordinate capture, and two physical button presses.
+- Confirmed in Play Mode with fallback anchors: `5 x 7` grid generation, diagonal orientation, start-side and goal-side colors, and `TACTICAL FIELD CONVERTED` status.
+- Needs device check: converted grid position and orientation with two real anchor placements.
 - Needs device check: straight `TargetMove` run and `GOAL REACHED` display.
 
 ## Short Hook
