@@ -24,6 +24,8 @@
 - Rotates the generated grid to follow the observed start-to-goal direction.
 - Uses start-side and goal-side colors to keep the generated battlefield readable.
 - Clears stale grid cells when anchors are cleared or recaptured.
+- Switches automatically to a low-chrome `FIELD VIEW` after conversion so the complete grid remains visible.
+- Keeps a compact `Return To Controls` action in `FIELD VIEW`; `Open Field View` can also be used manually from the control-view header.
 - Leaves Phase 3 grid-step Transporter movement for the next increment.
 
 ## How To Use
@@ -34,10 +36,11 @@
 4. Put the cube at the start anchor and press its physical button.
 5. Move the same cube to the goal anchor and press its physical button again.
 6. Press `Convert Tactical Field`.
-7. Check that a `5 x 7` grid appears and follows the observed axis.
-8. Return the same cube to the start anchor.
-9. Press `Run Transporter`.
-10. Check the physical cube movement and Unity `GOAL REACHED` display.
+7. Check that the scene switches to `FIELD VIEW` and the complete `5 x 7` grid follows the observed axis.
+8. Press `Return To Controls`.
+9. Return the same cube to the start anchor.
+10. Press `Run Transporter`.
+11. Check the physical cube movement and Unity `GOAL REACHED` display.
 
 If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to verify the screen flow with fallback coordinates.
 
@@ -46,6 +49,7 @@ If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to 
 - Confirmed by static implementation review: scene wiring, launcher wiring, Build Settings registration, and Unity batch compilation.
 - Confirmed on device: real cube connection, real mat coordinate capture, and two physical button presses.
 - Confirmed in Play Mode with fallback anchors: `5 x 7` grid generation, diagonal orientation, start-side and goal-side colors, and `TACTICAL FIELD CONVERTED` status.
+- Confirmed in Play Mode: automatic `FIELD VIEW` transition after conversion, manual `Open Field View`, complete-grid visibility, and `Return To Controls`.
 - Needs device check: converted grid position and orientation with two real anchor placements.
 - Needs device check: straight `TargetMove` run and `GOAL REACHED` display.
 

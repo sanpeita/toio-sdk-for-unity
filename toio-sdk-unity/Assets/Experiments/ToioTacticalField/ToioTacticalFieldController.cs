@@ -77,6 +77,10 @@ namespace toio.Experiments.ToioTacticalField
         private Text observationStatusLabel;
         private Text anchorStatusLabel;
         private Text victoryStatusLabel;
+        private Text fieldViewStatusLabel;
+        private Image rootBackground;
+        private GameObject controlView;
+        private GameObject fieldView;
         private GameObject observationMarker;
         private GameObject startMarker;
         private GameObject goalMarker;
@@ -195,6 +199,7 @@ namespace toio.Experiments.ToioTacticalField
             tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | {TacticalFieldColumns} x {TacticalFieldRows}";
             observationMessage = "Observed axis converted into the Ordia tactical field.";
             RefreshRuntimeUi();
+            SetFieldView(true);
         }
 
         public void OnRunTransporter()
@@ -241,6 +246,16 @@ namespace toio.Experiments.ToioTacticalField
         public void OnBackToLauncher()
         {
             SceneManager.LoadScene(LauncherSceneName);
+        }
+
+        public void OnShowFieldView()
+        {
+            SetFieldView(true);
+        }
+
+        public void OnShowControlView()
+        {
+            SetFieldView(false);
         }
 
         private async UniTask<Cube> ConnectCube()
@@ -550,25 +565,36 @@ namespace toio.Experiments.ToioTacticalField
 
             var root = CreateUiObject(RootName, canvas.transform);
             StretchFull(root.GetComponent<RectTransform>());
-            root.AddComponent<Image>().color = new Color(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 0.62f);
+            rootBackground = root.AddComponent<Image>();
+            rootBackground.color = new Color(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 0.62f);
 
-            var header = CreatePanel("Header", root.transform, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(900f, 104f), PanelColor);
-            CreateText("Title", header.transform, "toio Tactical Field | Ordia Deskfront", 31, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(0f, 15f), new Vector2(820f, 40f));
-            CreateText("Phase", header.transform, $"{VersionLabel} | Tactical Field Convert", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, -23f), new Vector2(820f, 26f));
+            controlView = CreateUiObject("ControlView", root.transform);
+            StretchFull(controlView.GetComponent<RectTransform>());
+            var header = CreatePanel("Header", controlView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(900f, 104f), PanelColor);
+            CreateText("Title", header.transform, "toio Tactical Field | Ordia Deskfront", 31, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(-72f, 15f), new Vector2(676f, 40f));
+            CreateText("Phase", header.transform, $"{VersionLabel} | Tactical Field Convert", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(-72f, -23f), new Vector2(676f, 26f));
+            CreateButton("FieldView", header.transform, "Open Field View", new Vector2(260f, 0f), new Vector2(150f, 42f), GoalColor, OnShowFieldView);
 
-            var status = CreatePanel("Status", root.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 382f), CardColor, true);
+            var status = CreatePanel("Status", controlView.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 382f), CardColor, true);
             connectionStatusLabel = CreateText("Connection", status.transform, string.Empty, 16, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -18f), new Vector2(410f, 58f), true);
             observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -96f), new Vector2(410f, 72f), true);
             anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 16, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -190f), new Vector2(410f, 112f), true);
             victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 24, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -318f), new Vector2(410f, 40f), true);
 
-            var actions = CreatePanel("Actions", root.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 382f), CardColor, false, true);
+            var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 382f), CardColor, false, true);
             CreateButton("Connect", actions.transform, "Connect Observation Cube", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
             CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnCaptureCurrentAnchor, true);
             CreateButton("Convert", actions.transform, "Convert Tactical Field", new Vector2(0f, -130f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
             CreateButton("Run", actions.transform, "Run Transporter", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
             CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
             CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -282f), new Vector2(276f, 38f), MutedTextColor, OnBackToLauncher, true);
+
+            fieldView = CreateUiObject("FieldView", root.transform);
+            StretchFull(fieldView.GetComponent<RectTransform>());
+            var fieldViewBar = CreatePanel("FieldViewBar", fieldView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(780f, 54f), CardColor);
+            fieldViewStatusLabel = CreateText("FieldViewStatus", fieldViewBar.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.MiddleLeft, TextColor, new Vector2(-90f, 0f), new Vector2(560f, 38f));
+            CreateButton("ReturnToControls", fieldViewBar.transform, "Return To Controls", new Vector2(285f, 0f), new Vector2(180f, 36f), GoalColor, OnShowControlView);
+            fieldView.SetActive(false);
         }
 
         private void RefreshRuntimeUi()
@@ -586,6 +612,24 @@ namespace toio.Experiments.ToioTacticalField
                 $"Axis:  {(hasStartAnchor && hasGoalAnchor ? $"{Vector2.Distance(startAnchor, goalAnchor):F1} mat dots" : "--")}\n" +
                 tacticalFieldMessage;
             victoryStatusLabel.text = transporterGoalReached ? "GOAL REACHED" : string.Empty;
+            if (fieldViewStatusLabel != null)
+            {
+                fieldViewStatusLabel.text = tacticalFieldMessage;
+            }
+        }
+
+        private void SetFieldView(bool isFieldView)
+        {
+            if (controlView == null || fieldView == null || rootBackground == null)
+            {
+                return;
+            }
+
+            controlView.SetActive(!isFieldView);
+            fieldView.SetActive(isFieldView);
+            rootBackground.color = isFieldView
+                ? new Color(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 0f)
+                : new Color(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 0.62f);
         }
 
         private static string FormatPoint(Vector2 point, string source)
