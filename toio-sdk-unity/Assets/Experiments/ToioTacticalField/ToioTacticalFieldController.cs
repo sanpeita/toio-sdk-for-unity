@@ -15,7 +15,7 @@ namespace toio.Experiments.ToioTacticalField
     {
         private const string LauncherSceneName = "ToioLauncher";
         private const string RootName = "ToioTacticalFieldRoot";
-        private const string VersionLabel = "Phase 2.0";
+        private const string VersionLabel = "Phase 3.0";
         private const int TacticalFieldColumns = 5;
         private const int TacticalFieldRows = 7;
 
@@ -52,6 +52,7 @@ namespace toio.Experiments.ToioTacticalField
         [Header("Straight Transporter Victory")]
         [SerializeField] private float transporterStartToleranceMatDots = 28f;
         [SerializeField] private float transporterGoalToleranceMatDots = 18f;
+        [SerializeField] private float transporterStepToleranceMatDots = 20f;
         [SerializeField] private int transporterMaxSpeed = 70;
 
         private CubeManager cubeManager;
@@ -88,6 +89,8 @@ namespace toio.Experiments.ToioTacticalField
         private Transform tacticalFieldRoot;
         private readonly List<GameObject> tacticalFieldCells = new List<GameObject>();
         private Vector2[] tacticalCellPoints = Array.Empty<Vector2>();
+        private Vector2[] transporterRoutePoints = Array.Empty<Vector2>();
+        private int transporterRouteIndex = -1;
 
         private bool IsCubeConnected => observationCube != null && observationCube.isConnected;
 
@@ -169,6 +172,8 @@ namespace toio.Experiments.ToioTacticalField
             hasGoalAnchor = false;
             isTransporterMoving = false;
             transporterGoalReached = false;
+            transporterRouteIndex = -1;
+            transporterRoutePoints = Array.Empty<Vector2>();
             ClearTacticalField();
             startSource = "--";
             goalSource = "--";
@@ -196,6 +201,7 @@ namespace toio.Experiments.ToioTacticalField
 
             tacticalCellPoints = GenerateTacticalCellPoints(startAnchor, goalAnchor);
             RenderTacticalField(tacticalCellPoints);
+            ResetTransporterRoute();
             tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | {TacticalFieldColumns} x {TacticalFieldRows}";
             observationMessage = "Observed axis converted into the Ordia tactical field.";
             RefreshRuntimeUi();
@@ -216,6 +222,12 @@ namespace toio.Experiments.ToioTacticalField
                 return;
             }
 
+            if (tacticalCellPoints.Length == 0)
+            {
+                observationMessage = "Convert the tactical field before running the Phase 3 grid route.";
+                return;
+            }
+
             if (!CaptureLivePoint(observationCube))
             {
                 observationMessage = "No readable mat position. Place the cube at the observed start anchor.";
@@ -229,17 +241,13 @@ namespace toio.Experiments.ToioTacticalField
                 return;
             }
 
+            transporterRoutePoints = GenerateTransporterRoutePoints();
+            transporterRouteIndex = 0;
             isTransporterMoving = true;
             transporterGoalReached = false;
-            observationMessage = "Transporter advancing directly to the observed goal...";
-            observationCube.TargetMove(
-                Mathf.RoundToInt(goalAnchor.x),
-                Mathf.RoundToInt(goalAnchor.y),
-                observationCube.angle,
-                configID: 1,
-                targetMoveType: Cube.TargetMoveType.RoundBeforeMove,
-                maxSpd: transporterMaxSpeed
-            );
+            observationMessage = FormatRouteMessage("GRID ROUTE STARTED");
+            CommandCurrentRouteTarget();
+            SetFieldView(true);
             RefreshRuntimeUi();
         }
 
@@ -404,8 +412,7 @@ namespace toio.Experiments.ToioTacticalField
                 goalAnchor = point;
                 goalSource = source;
                 hasGoalAnchor = true;
-                isTransporterMoving = false;
-                transporterGoalReached = false;
+                ResetTransporterRoute();
                 observationMessage = "Goal anchor locked. Return the same cube to start, then press Run Transporter.";
             }
 
@@ -415,19 +422,31 @@ namespace toio.Experiments.ToioTacticalField
 
         private void RefreshTransporterArrival()
         {
-            if (!isTransporterMoving || !hasLivePoint || !hasGoalAnchor)
+            if (!isTransporterMoving || !hasLivePoint || transporterRoutePoints.Length == 0 || transporterRouteIndex < 0)
             {
                 return;
             }
 
-            if (Vector2.Distance(livePoint, goalAnchor) > transporterGoalToleranceMatDots)
+            var target = transporterRoutePoints[Mathf.Clamp(transporterRouteIndex, 0, transporterRoutePoints.Length - 1)];
+            var tolerance = transporterRouteIndex >= transporterRoutePoints.Length - 1
+                ? transporterGoalToleranceMatDots
+                : transporterStepToleranceMatDots;
+            if (Vector2.Distance(livePoint, target) > tolerance)
             {
+                return;
+            }
+
+            if (transporterRouteIndex < transporterRoutePoints.Length - 1)
+            {
+                transporterRouteIndex++;
+                observationMessage = FormatRouteMessage("GRID STEP LOCKED");
+                CommandCurrentRouteTarget();
                 return;
             }
 
             isTransporterMoving = false;
             transporterGoalReached = true;
-            observationMessage = "GOAL REACHED. Straight Transporter victory confirmed.";
+            observationMessage = "GOAL REACHED. Phase 3.0 grid-step Transporter route confirmed.";
         }
 
         private void EnsureWorld()
@@ -473,6 +492,71 @@ namespace toio.Experiments.ToioTacticalField
             return points;
         }
 
+        private Vector2[] GenerateTransporterRoutePoints()
+        {
+            var route = new List<Vector2>();
+            var centerColumn = TacticalFieldColumns / 2;
+            for (var row = 0; row < TacticalFieldRows; row++)
+            {
+                var index = row * TacticalFieldColumns + centerColumn;
+                if (index >= 0 && index < tacticalCellPoints.Length)
+                {
+                    route.Add(tacticalCellPoints[index]);
+                }
+            }
+
+            route.Add(goalAnchor);
+            return route.ToArray();
+        }
+
+        private void CommandCurrentRouteTarget()
+        {
+            if (!IsCubeConnected || transporterRoutePoints.Length == 0 || transporterRouteIndex < 0)
+            {
+                return;
+            }
+
+            var target = transporterRoutePoints[Mathf.Clamp(transporterRouteIndex, 0, transporterRoutePoints.Length - 1)];
+            var nextPoint = transporterRouteIndex < transporterRoutePoints.Length - 1
+                ? transporterRoutePoints[transporterRouteIndex + 1]
+                : goalAnchor;
+            observationCube.TargetMove(
+                Mathf.RoundToInt(target.x),
+                Mathf.RoundToInt(target.y),
+                CalculateMatAngle(target, nextPoint),
+                configID: Mathf.Clamp(transporterRouteIndex + 1, 1, 255),
+                targetMoveType: Cube.TargetMoveType.RoundBeforeMove,
+                maxSpd: transporterMaxSpeed
+            );
+        }
+
+        private void ResetTransporterRoute()
+        {
+            isTransporterMoving = false;
+            transporterGoalReached = false;
+            transporterRouteIndex = -1;
+            transporterRoutePoints = Array.Empty<Vector2>();
+        }
+
+        private string FormatRouteMessage(string prefix)
+        {
+            var stepCount = transporterRoutePoints.Length;
+            var stepNumber = Mathf.Clamp(transporterRouteIndex + 1, 1, Mathf.Max(1, stepCount));
+            return $"{prefix} | step {stepNumber}/{stepCount}";
+        }
+
+        private static int CalculateMatAngle(Vector2 from, Vector2 to)
+        {
+            var direction = to - from;
+            if (direction.sqrMagnitude <= Mathf.Epsilon)
+            {
+                return 0;
+            }
+
+            var degrees = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            return Mathf.RoundToInt(Mathf.Repeat(degrees, 360f));
+        }
+
         private void RenderTacticalField(Vector2[] points)
         {
             DestroyTacticalFieldCells();
@@ -499,6 +583,7 @@ namespace toio.Experiments.ToioTacticalField
         {
             DestroyTacticalFieldCells();
             tacticalCellPoints = Array.Empty<Vector2>();
+            ResetTransporterRoute();
             tacticalFieldMessage = "Field: awaiting anchor conversion.";
         }
 
@@ -572,7 +657,7 @@ namespace toio.Experiments.ToioTacticalField
             StretchFull(controlView.GetComponent<RectTransform>());
             var header = CreatePanel("Header", controlView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(900f, 104f), PanelColor);
             CreateText("Title", header.transform, "toio Tactical Field | Ordia Deskfront", 31, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(-72f, 15f), new Vector2(676f, 40f));
-            CreateText("Phase", header.transform, $"{VersionLabel} | Tactical Field Convert", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(-72f, -23f), new Vector2(676f, 26f));
+            CreateText("Phase", header.transform, $"{VersionLabel} | Grid-Step Transporter", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(-72f, -23f), new Vector2(676f, 26f));
             CreateButton("FieldView", header.transform, "Open Field View", new Vector2(260f, 0f), new Vector2(150f, 42f), GoalColor, OnShowFieldView);
 
             var status = CreatePanel("Status", controlView.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 382f), CardColor, true);
@@ -585,7 +670,7 @@ namespace toio.Experiments.ToioTacticalField
             CreateButton("Connect", actions.transform, "Connect Observation Cube", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
             CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnCaptureCurrentAnchor, true);
             CreateButton("Convert", actions.transform, "Convert Tactical Field", new Vector2(0f, -130f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
-            CreateButton("Run", actions.transform, "Run Transporter", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
+            CreateButton("Run", actions.transform, "Run Grid Route", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
             CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
             CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -282f), new Vector2(276f, 38f), MutedTextColor, OnBackToLauncher, true);
 
@@ -610,6 +695,7 @@ namespace toio.Experiments.ToioTacticalField
                 $"Start: {(hasStartAnchor ? FormatPoint(startAnchor, startSource) : "--")}\n" +
                 $"Goal:  {(hasGoalAnchor ? FormatPoint(goalAnchor, goalSource) : "--")}\n" +
                 $"Axis:  {(hasStartAnchor && hasGoalAnchor ? $"{Vector2.Distance(startAnchor, goalAnchor):F1} mat dots" : "--")}\n" +
+                $"Route: {FormatRouteStatus()}\n" +
                 tacticalFieldMessage;
             victoryStatusLabel.text = transporterGoalReached ? "GOAL REACHED" : string.Empty;
             if (fieldViewStatusLabel != null)
@@ -635,6 +721,21 @@ namespace toio.Experiments.ToioTacticalField
         private static string FormatPoint(Vector2 point, string source)
         {
             return $"({point.x:F1}, {point.y:F1}) [{source}]";
+        }
+
+        private string FormatRouteStatus()
+        {
+            if (transporterGoalReached)
+            {
+                return "complete";
+            }
+
+            if (isTransporterMoving && transporterRoutePoints.Length > 0 && transporterRouteIndex >= 0)
+            {
+                return $"{transporterRouteIndex + 1}/{transporterRoutePoints.Length}";
+            }
+
+            return tacticalCellPoints.Length > 0 ? "ready" : "--";
         }
 
         private static string GetCubeLabel(Cube cube)
