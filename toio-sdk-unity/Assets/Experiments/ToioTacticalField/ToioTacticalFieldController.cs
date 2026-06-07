@@ -15,9 +15,10 @@ namespace toio.Experiments.ToioTacticalField
     {
         private const string LauncherSceneName = "ToioLauncher";
         private const string RootName = "ToioTacticalFieldRoot";
-        private const string VersionLabel = "Phase 3.0";
+        private const string VersionLabel = "Phase 4";
         private const int TacticalFieldColumns = 5;
         private const int TacticalFieldRows = 7;
+        private const int FriendlyRoleCount = 3;
 
         private static readonly Color BackgroundColor = new Color(0.055f, 0.075f, 0.07f, 1f);
         private static readonly Color PanelColor = new Color(0.105f, 0.145f, 0.13f, 0.97f);
@@ -55,8 +56,15 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private float transporterStepToleranceMatDots = 20f;
         [SerializeField] private int transporterMaxSpeed = 70;
 
+        [Header("Phase 4 Friendly Recognition")]
+        [SerializeField] private int roleAppealSpeed = 35;
+        [SerializeField] private int roleAppealTurnMs = 260;
+        [SerializeField] private int roleAppealPauseMs = 110;
+
         private CubeManager cubeManager;
         private Cube observationCube;
+        private Cube scoutCube;
+        private Cube builderCube;
         private string observationListenerKey;
         private bool isConnecting;
         private bool cubeButtonPressed;
@@ -70,11 +78,13 @@ namespace toio.Experiments.ToioTacticalField
         private Vector2 goalAnchor;
         private string startSource = "--";
         private string goalSource = "--";
-        private string connectionMessage = "Not connected. Press Connect Observation Cube.";
+        private string connectionMessage = "Not connected. Press Connect Friendly Team.";
         private string observationMessage = "Awaiting start anchor observation.";
         private string tacticalFieldMessage = "Field: awaiting anchor conversion.";
+        private string roleMessage = "Roles: Transporter / Scout / Builder awaiting connection.";
 
         private Text connectionStatusLabel;
+        private Text roleStatusLabel;
         private Text observationStatusLabel;
         private Text anchorStatusLabel;
         private Text victoryStatusLabel;
@@ -93,6 +103,10 @@ namespace toio.Experiments.ToioTacticalField
         private int transporterRouteIndex = -1;
 
         private bool IsCubeConnected => observationCube != null && observationCube.isConnected;
+        private bool IsFriendlyTeamConnected =>
+            IsCubeConnected &&
+            scoutCube != null && scoutCube.isConnected &&
+            builderCube != null && builderCube.isConnected;
 
         private void Awake()
         {
@@ -127,7 +141,7 @@ namespace toio.Experiments.ToioTacticalField
 
         public async void OnConnectObservationCube()
         {
-            if (isConnecting || IsCubeConnected)
+            if (isConnecting || IsFriendlyTeamConnected)
             {
                 return;
             }
@@ -136,18 +150,30 @@ namespace toio.Experiments.ToioTacticalField
             RefreshRuntimeUi();
             try
             {
-                observationCube = await ConnectCube();
-                if (observationCube == null)
+                var connectedCubes = await ConnectFriendlyTeam();
+                if (connectedCubes.Count < FriendlyRoleCount)
                 {
-                    connectionMessage = "Observation cube was not confirmed. Keep one cube near the PC and press Connect again.";
+                    connectionMessage = "Friendly team was not confirmed. Keep three cubes near the PC and press Connect again.";
+                    roleMessage = $"Roles: connected {connectedCubes.Count}/{FriendlyRoleCount}. Scout and Builder behavior remains out of scope.";
                     return;
                 }
 
+                observationCube = connectedCubes[0];
+                scoutCube = connectedCubes[1];
+                builderCube = connectedCubes[2];
                 RegisterCube(observationCube);
-                await observationCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
+                foreach (var cube in connectedCubes)
+                {
+                    await cube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
+                }
+
                 RefreshLivePoint();
-                connectionMessage = $"Connected observation cube: {GetCubeLabel(observationCube)}";
-                observationMessage = "Move the cube to the start anchor, then press its button.";
+                connectionMessage = "Friendly team connected. Transporter will keep observation and grid-route duties.";
+                roleMessage = FormatRoleMessage();
+                await RunRoleAppeal("Transporter", observationCube);
+                await RunRoleAppeal("Scout", scoutCube);
+                await RunRoleAppeal("Builder", builderCube);
+                observationMessage = "Move the Transporter cube to the start anchor, then press its button.";
             }
             catch (Exception ex)
             {
@@ -266,20 +292,21 @@ namespace toio.Experiments.ToioTacticalField
             SetFieldView(false);
         }
 
-        private async UniTask<Cube> ConnectCube()
+        private async UniTask<IReadOnlyList<Cube>> ConnectFriendlyTeam()
         {
             cubeManager ??= new CubeManager(ResolveConnectType());
             var attemptCount = Mathf.Max(1, connectMaxAttempts);
             for (var attempt = 1; attempt <= attemptCount; attempt++)
             {
                 connectionMessage = attempt == 1
-                    ? "Scanning and connecting one observation cube..."
-                    : $"Retrying observation cube connection ({attempt}/{attemptCount})...";
+                    ? "Scanning and connecting three friendly cubes..."
+                    : $"Retrying friendly team connection ({attempt}/{attemptCount})...";
+                roleMessage = $"Roles: waiting for Transporter / Scout / Builder ({attempt}/{attemptCount}).";
                 RefreshRuntimeUi();
 
                 try
                 {
-                    await cubeManager.MultiConnect(1);
+                    await cubeManager.MultiConnect(FriendlyRoleCount);
                 }
                 catch (Exception ex)
                 {
@@ -291,12 +318,14 @@ namespace toio.Experiments.ToioTacticalField
                     .GroupBy(cube => cube.addr)
                     .Select(group => group.First())
                     .OrderBy(cube => cube.addr)
-                    .FirstOrDefault();
-                if (connected != null)
+                    .Take(FriendlyRoleCount)
+                    .ToList();
+                if (connected.Count >= FriendlyRoleCount)
                 {
                     return connected;
                 }
 
+                connectionMessage = $"Only {connected.Count}/{FriendlyRoleCount} friendly cubes were confirmed.";
                 cubeManager.DisconnectAll();
                 if (attempt < attemptCount)
                 {
@@ -304,7 +333,7 @@ namespace toio.Experiments.ToioTacticalField
                 }
             }
 
-            return null;
+            return Array.Empty<Cube>();
         }
 
         private ConnectType ResolveConnectType()
@@ -334,6 +363,25 @@ namespace toio.Experiments.ToioTacticalField
 
             observationCube.idCallback.RemoveListener(observationListenerKey);
             observationCube.buttonCallback.RemoveListener(observationListenerKey);
+        }
+
+        private async UniTask RunRoleAppeal(string roleName, Cube cube)
+        {
+            if (cube == null || !cube.isConnected)
+            {
+                return;
+            }
+
+            roleMessage = $"{roleName}: connected as {GetCubeLabel(cube)}. Short left-right appeal.";
+            RefreshRuntimeUi();
+            cube.Move(roleAppealSpeed, -roleAppealSpeed, roleAppealTurnMs, Cube.ORDER_TYPE.Strong);
+            await UniTask.Delay(roleAppealTurnMs + roleAppealPauseMs);
+            cube.Move(-roleAppealSpeed, roleAppealSpeed, roleAppealTurnMs, Cube.ORDER_TYPE.Strong);
+            await UniTask.Delay(roleAppealTurnMs + roleAppealPauseMs);
+            cube.Move(0, 0, 80, Cube.ORDER_TYPE.Strong);
+            await UniTask.Delay(roleAppealPauseMs);
+            roleMessage = FormatRoleMessage();
+            RefreshRuntimeUi();
         }
 
         private void OnCubeId(Cube cube)
@@ -446,7 +494,7 @@ namespace toio.Experiments.ToioTacticalField
 
             isTransporterMoving = false;
             transporterGoalReached = true;
-            observationMessage = "GOAL REACHED. Phase 3.0 grid-step Transporter route confirmed.";
+            observationMessage = "GOAL REACHED. Phase 4 friendly recognition kept the Transporter route working.";
         }
 
         private void EnsureWorld()
@@ -657,17 +705,18 @@ namespace toio.Experiments.ToioTacticalField
             StretchFull(controlView.GetComponent<RectTransform>());
             var header = CreatePanel("Header", controlView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(900f, 104f), PanelColor);
             CreateText("Title", header.transform, "toio Tactical Field | Ordia Deskfront", 31, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(-72f, 15f), new Vector2(676f, 40f));
-            CreateText("Phase", header.transform, $"{VersionLabel} | Grid-Step Transporter", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(-72f, -23f), new Vector2(676f, 26f));
+            CreateText("Phase", header.transform, $"{VersionLabel} | Friendly 3-Piece Recognition", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(-72f, -23f), new Vector2(676f, 26f));
             CreateButton("FieldView", header.transform, "Open Field View", new Vector2(260f, 0f), new Vector2(150f, 42f), GoalColor, OnShowFieldView);
 
             var status = CreatePanel("Status", controlView.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 382f), CardColor, true);
             connectionStatusLabel = CreateText("Connection", status.transform, string.Empty, 16, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -18f), new Vector2(410f, 58f), true);
-            observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -96f), new Vector2(410f, 72f), true);
-            anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 16, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -190f), new Vector2(410f, 112f), true);
+            roleStatusLabel = CreateText("Roles", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -78f), new Vector2(410f, 62f), true);
+            observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 17, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -148f), new Vector2(410f, 62f), true);
+            anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 15, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -222f), new Vector2(410f, 86f), true);
             victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 24, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -318f), new Vector2(410f, 40f), true);
 
             var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 382f), CardColor, false, true);
-            CreateButton("Connect", actions.transform, "Connect Observation Cube", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
+            CreateButton("Connect", actions.transform, "Connect Friendly Team", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
             CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnCaptureCurrentAnchor, true);
             CreateButton("Convert", actions.transform, "Convert Tactical Field", new Vector2(0f, -130f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
             CreateButton("Run", actions.transform, "Run Grid Route", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
@@ -690,6 +739,7 @@ namespace toio.Experiments.ToioTacticalField
             }
 
             connectionStatusLabel.text = connectionMessage;
+            roleStatusLabel.text = roleMessage;
             observationStatusLabel.text = observationMessage;
             anchorStatusLabel.text =
                 $"Start: {(hasStartAnchor ? FormatPoint(startAnchor, startSource) : "--")}\n" +
@@ -736,6 +786,18 @@ namespace toio.Experiments.ToioTacticalField
             }
 
             return tacticalCellPoints.Length > 0 ? "ready" : "--";
+        }
+
+        private string FormatRoleMessage()
+        {
+            return
+                $"Transporter: {FormatRoleCube(observationCube)}\n" +
+                $"Scout: {FormatRoleCube(scoutCube)} | Builder: {FormatRoleCube(builderCube)}";
+        }
+
+        private static string FormatRoleCube(Cube cube)
+        {
+            return cube != null && cube.isConnected ? GetCubeLabel(cube) : "--";
         }
 
         private static string GetCubeLabel(Cube cube)

@@ -2,19 +2,21 @@
 
 ## Purpose
 
-`ToioTacticalField` is the Ordia tabletop auto-tactics prototype scene. Phase 3.0 converts a start anchor and a goal anchor from one observation toio Core Cube into a fixed `5 x 7` tactical grid, then runs the same cube as a Transporter through the generated center-lane route.
+`ToioTacticalField` is the Ordia tabletop auto-tactics prototype scene. Phase 4 connects the player-side Transporter / Scout / Builder cubes, makes each connected cube briefly turn left-right for filming clarity, then keeps the observation / Transporter cube responsible for tactical field conversion and the grid-route victory.
 
 ## Scene
 
 - Scene: `Assets/Experiments/ToioTacticalField/ToioTacticalField.unity`
 - Launcher entry: `ToioLauncher -> Open TacticalField`
-- Device: one observation / Transporter toio Core Cube
-- Current boundary: Phase 3.0 `Grid-Step Transporter`
+- Device: three player-side toio Core Cubes
+- Current boundary: Phase 4 `Friendly 3-Piece Recognition`
 
 ## Implemented Features
 
-- Connects one real toio Core Cube through `CubeManager.MultiConnect(1)`.
-- Uses the same cube button twice: first press records the start anchor, second press records the goal anchor.
+- Connects three real toio Core Cubes through `CubeManager.MultiConnect(3)`.
+- Assigns the connected cubes, ordered by BLE address, to Transporter, Scout, and Builder.
+- Runs a short left-right turn appeal after each role connection so the physical cube-to-role pairing is visible without sound.
+- Uses the Transporter cube button twice: first press records the start anchor, second press records the goal anchor.
 - Shows the live observation marker, captured start marker, captured goal marker, and observed axis.
 - Uses real toio mat coordinates when `cube.pos` is readable.
 - Provides `Capture Current Anchor` as a recording fallback and demo coordinates when the mat ID is unavailable.
@@ -30,21 +32,22 @@
 - Clears stale grid cells when anchors are cleared or recaptured.
 - Switches automatically to a low-chrome `FIELD VIEW` after conversion so the complete grid remains visible.
 - Keeps a compact `Return To Controls` action in `FIELD VIEW`; `Open Field View` can also be used manually from the control-view header.
-- Leaves Phase 3.1 as the richer shooting increment after this baseline route is checked on device.
+- Keeps Scout and Builder tactical behavior out of scope for Phase 4.
 
 ## How To Use
 
 1. Open `Assets/Experiments/ToioTacticalField/ToioTacticalField.unity` directly when recording stability matters.
 2. Play the scene.
-3. Press `Connect Observation Cube`.
-4. Put the cube at the start anchor and press its physical button.
-5. Move the same cube to the goal anchor and press its physical button again.
-6. Press `Convert Tactical Field`.
-7. Check that the scene switches to `FIELD VIEW` and the complete `5 x 7` grid follows the observed axis.
-8. Press `Return To Controls`.
-9. Return the same cube to the start anchor.
-10. Press `Run Grid Route`.
-11. Check that the scene switches back to `FIELD VIEW`, route progress advances step by step, and Unity shows `GOAL REACHED` after the final goal anchor.
+3. Press `Connect Friendly Team`.
+4. Check that Transporter, Scout, and Builder are listed in the role status and that each cube briefly turns left-right after connection.
+5. Put the Transporter cube at the start anchor and press its physical button.
+6. Move the same Transporter cube to the goal anchor and press its physical button again.
+7. Press `Convert Tactical Field`.
+8. Check that the scene switches to `FIELD VIEW` and the complete `5 x 7` grid follows the observed axis.
+9. Press `Return To Controls`.
+10. Return the Transporter cube to the start anchor.
+11. Press `Run Grid Route`.
+12. Check that the scene switches back to `FIELD VIEW`, route progress advances step by step, and Unity shows `GOAL REACHED` after the final goal anchor.
 
 If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to verify the screen flow with fallback coordinates.
 
@@ -54,16 +57,17 @@ If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to 
 - Confirmed on device: real cube connection, real mat coordinate capture, and two physical button presses.
 - Confirmed in Play Mode with fallback anchors: `5 x 7` grid generation, diagonal orientation, start-side and goal-side colors, and `TACTICAL FIELD CONVERTED` status.
 - Confirmed in Play Mode: automatic `FIELD VIEW` transition after conversion, manual `Open Field View`, complete-grid visibility, and `Return To Controls`.
-- Confirmed by static implementation review: Phase 3.0 center-lane route generation, route progress status, grid-route gating after conversion, and final `GOAL REACHED` state.
+- Confirmed by static implementation review: Phase 4 friendly role connection flow, short cube appeal commands, role status display, and preservation of the Phase 3.0 grid-route victory path.
 - Needs device check: converted grid position and orientation with two real anchor placements.
-- Needs device check: Phase 3.0 grid-step `TargetMove` route and `GOAL REACHED` display.
+- Needs device check: `MultiConnect(3)` friendly role assignment and short left-right appeal on the physical cubes.
+- Needs device check: Phase 4 Transporter grid-step `TargetMove` route and `GOAL REACHED` display.
 
-## Phase 3.1 Candidate
+## Phase 5 Candidate
 
-Phase 3.1 should be a plus-one shooting upgrade after Phase 3.0 works on device. Good candidates are route highlight effects, a visible current-step marker, or a short pause / pulse on each locked grid cell. Do not add this before the physical Phase 3.0 route is checked.
+Phase 5 should give Scout one visible discovery effect after the Phase 4 friendly-team recognition flow works on device. Do not add Scout search behavior to Phase 4.
 
 ## Short Hook
 
 ```text
-観測した2点の間を、トランスポーターが直進します。
+昨日まで1駒だった机上に、今日は3つの役割を並べます。
 ```
