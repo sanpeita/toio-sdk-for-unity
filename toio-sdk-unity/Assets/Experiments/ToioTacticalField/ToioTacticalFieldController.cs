@@ -57,9 +57,10 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private int transporterMaxSpeed = 70;
 
         [Header("Phase 4 Friendly Recognition")]
-        [SerializeField] private int roleAppealSpeed = 35;
-        [SerializeField] private int roleAppealTurnMs = 260;
-        [SerializeField] private int roleAppealPauseMs = 110;
+        [SerializeField] private int roleAppealSpeed = 28;
+        [SerializeField] private int roleAppealTurnMs = 240;
+        [SerializeField] private int roleAppealPauseMs = 180;
+        [SerializeField] private int roleAppealReadyTimeoutMs = 2200;
 
         private CubeManager cubeManager;
         private Cube observationCube;
@@ -162,14 +163,13 @@ namespace toio.Experiments.ToioTacticalField
                 scoutCube = connectedCubes[1];
                 builderCube = connectedCubes[2];
                 RegisterCube(observationCube);
-                foreach (var cube in connectedCubes)
-                {
-                    await cube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
-                }
+                await observationCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
 
                 RefreshLivePoint();
                 connectionMessage = "Friendly team connected. Transporter will keep observation and grid-route duties.";
                 roleMessage = FormatRoleMessage();
+                RefreshRuntimeUi();
+                await UniTask.Delay(roleAppealPauseMs);
                 await RunRoleAppeal("Transporter", observationCube);
                 await RunRoleAppeal("Scout", scoutCube);
                 await RunRoleAppeal("Builder", builderCube);
@@ -299,27 +299,21 @@ namespace toio.Experiments.ToioTacticalField
             for (var attempt = 1; attempt <= attemptCount; attempt++)
             {
                 connectionMessage = attempt == 1
-                    ? "Scanning and connecting three friendly cubes..."
+                    ? "Scanning and connecting three friendly cubes one by one..."
                     : $"Retrying friendly team connection ({attempt}/{attemptCount})...";
                 roleMessage = $"Roles: waiting for Transporter / Scout / Builder ({attempt}/{attemptCount}).";
                 RefreshRuntimeUi();
 
                 try
                 {
-                    await cubeManager.MultiConnect(FriendlyRoleCount);
+                    await ConnectFriendlyCubesOneByOne();
                 }
                 catch (Exception ex)
                 {
                     Debug.LogException(ex);
                 }
 
-                var connected = cubeManager.connectedCubes
-                    .Where(cube => cube != null && cube.isConnected)
-                    .GroupBy(cube => cube.addr)
-                    .Select(group => group.First())
-                    .OrderBy(cube => cube.addr)
-                    .Take(FriendlyRoleCount)
-                    .ToList();
+                var connected = GetOrderedConnectedCubes();
                 if (connected.Count >= FriendlyRoleCount)
                 {
                     return connected;
@@ -334,6 +328,35 @@ namespace toio.Experiments.ToioTacticalField
             }
 
             return Array.Empty<Cube>();
+        }
+
+        private async UniTask ConnectFriendlyCubesOneByOne()
+        {
+            var guard = 0;
+            while (GetOrderedConnectedCubes().Count < FriendlyRoleCount && guard < FriendlyRoleCount + 2)
+            {
+                guard++;
+                connectionMessage = $"Connecting friendly cube {Mathf.Min(guard, FriendlyRoleCount)}/{FriendlyRoleCount}...";
+                RefreshRuntimeUi();
+                await cubeManager.SingleConnect();
+                await UniTask.Delay(roleAppealPauseMs);
+            }
+        }
+
+        private IReadOnlyList<Cube> GetOrderedConnectedCubes()
+        {
+            if (cubeManager == null)
+            {
+                return Array.Empty<Cube>();
+            }
+
+            return cubeManager.connectedCubes
+                .Where(cube => cube != null && cube.isConnected)
+                .GroupBy(cube => string.IsNullOrEmpty(cube.addr) ? cube.GetHashCode().ToString() : cube.addr)
+                .Select(group => group.First())
+                .OrderBy(cube => cube.addr)
+                .Take(FriendlyRoleCount)
+                .ToList();
         }
 
         private ConnectType ResolveConnectType()
@@ -374,14 +397,47 @@ namespace toio.Experiments.ToioTacticalField
 
             roleMessage = $"{roleName}: connected as {GetCubeLabel(cube)}. Short left-right appeal.";
             RefreshRuntimeUi();
+            var ready = await WaitUntilCubeControllable(cube);
+            if (!ready)
+            {
+                roleMessage = $"{roleName}: connected as {GetCubeLabel(cube)}, but appeal skipped because the cube was not ready for motor orders.";
+                RefreshRuntimeUi();
+                await UniTask.Delay(roleAppealPauseMs);
+                return;
+            }
+
             cube.Move(roleAppealSpeed, -roleAppealSpeed, roleAppealTurnMs, Cube.ORDER_TYPE.Strong);
             await UniTask.Delay(roleAppealTurnMs + roleAppealPauseMs);
+            await WaitUntilCubeControllable(cube);
             cube.Move(-roleAppealSpeed, roleAppealSpeed, roleAppealTurnMs, Cube.ORDER_TYPE.Strong);
             await UniTask.Delay(roleAppealTurnMs + roleAppealPauseMs);
+            await WaitUntilCubeControllable(cube);
             cube.Move(0, 0, 80, Cube.ORDER_TYPE.Strong);
             await UniTask.Delay(roleAppealPauseMs);
             roleMessage = FormatRoleMessage();
             RefreshRuntimeUi();
+        }
+
+        private async UniTask<bool> WaitUntilCubeControllable(Cube cube)
+        {
+            if (cube == null || cubeManager == null)
+            {
+                return false;
+            }
+
+            var elapsedMs = 0;
+            while (elapsedMs < roleAppealReadyTimeoutMs)
+            {
+                if (cube.isConnected && cubeManager.IsControllable(cube))
+                {
+                    return true;
+                }
+
+                await UniTask.Delay(50);
+                elapsedMs += 50;
+            }
+
+            return cube.isConnected && cubeManager.IsControllable(cube);
         }
 
         private void OnCubeId(Cube cube)

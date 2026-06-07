@@ -13,7 +13,7 @@
 
 ## Implemented Features
 
-- Connects three real toio Core Cubes through `CubeManager.MultiConnect(3)`.
+- Connects three real toio Core Cubes one by one for the Phase 4 friendly team.
 - Assigns the connected cubes, ordered by BLE address, to Transporter, Scout, and Builder.
 - Runs a short left-right turn appeal after each role connection so the physical cube-to-role pairing is visible without sound.
 - Uses the Transporter cube button twice: first press records the start anchor, second press records the goal anchor.
@@ -59,7 +59,7 @@ If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to 
 - Confirmed in Play Mode: automatic `FIELD VIEW` transition after conversion, manual `Open Field View`, complete-grid visibility, and `Return To Controls`.
 - Confirmed by static implementation review: Phase 4 friendly role connection flow, short cube appeal commands, role status display, and preservation of the Phase 3.0 grid-route victory path.
 - Needs device check: converted grid position and orientation with two real anchor placements.
-- Needs device check: `MultiConnect(3)` friendly role assignment and short left-right appeal on the physical cubes.
+- Needs device check: three-cube friendly role assignment and short left-right appeal on the physical cubes.
 - Needs device check: Phase 4 Transporter grid-step `TargetMove` route and `GOAL REACHED` display.
 
 ## Phase 5 Candidate
