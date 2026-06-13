@@ -27,6 +27,9 @@ namespace toio.Experiments.ToioTacticalField
         private const int EnemyGoalLineX = 2;
         private const string JapaneseFontResourcePath = "Fonts/NotoSansJP-VF";
 
+        private static readonly Vector2Int ScoutStartCell = new Vector2Int(PlayerStartLineX, 1);
+        private static readonly Vector2Int TransporterStartCell = new Vector2Int(PlayerStartLineX, 0);
+        private static readonly Vector2Int BuilderStartCell = new Vector2Int(PlayerStartLineX, -1);
         private static readonly Color BackgroundColor = new Color(0.055f, 0.075f, 0.07f, 1f);
         private static readonly Color PanelColor = new Color(0.105f, 0.145f, 0.13f, 0.97f);
         private static readonly Color CardColor = new Color(0.075f, 0.11f, 0.1f, 0.97f);
@@ -74,18 +77,21 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private int roleAppealTurnMs = 240;
         [SerializeField] private int roleAppealPauseMs = 180;
         [SerializeField] private int roleAppealReadyTimeoutMs = 2200;
+        [SerializeField] private bool runRoleAppealBeforeStartLineMove;
 
         [Header("Phase 5 Scout Discovery")]
         [SerializeField] private int phase5ObstacleCount = 5;
         [SerializeField] private int phase5RandomSeed = 503;
         [SerializeField] private int scoutSearchRadiusCells = 2;
         [SerializeField] private int scoutMoveMaxSpeed = 45;
+        [SerializeField] private int startLineMoveMaxSpeed = 40;
 
         private CubeManager cubeManager;
         private Cube observationCube;
         private Cube scoutCube;
         private Cube builderCube;
         private string observationListenerKey;
+        private bool isSceneActive = true;
         private bool isConnecting;
         private bool cubeButtonPressed;
         private bool hasLivePoint;
@@ -166,8 +172,12 @@ namespace toio.Experiments.ToioTacticalField
 
         private void OnDestroy()
         {
+            isSceneActive = false;
             RemoveListeners();
-            cubeManager?.DisconnectAll();
+            if (Application.isPlaying)
+            {
+                cubeManager?.DisconnectAll();
+            }
         }
 
         public async void OnConnectObservationCube()
@@ -182,6 +192,11 @@ namespace toio.Experiments.ToioTacticalField
             try
             {
                 var connectedCubes = await ConnectFriendlyTeam();
+                if (!isSceneActive)
+                {
+                    return;
+                }
+
                 if (connectedCubes.Count < FriendlyRoleCount)
                 {
                     connectionMessage = "Friendly team was not confirmed. Keep three cubes near the PC and press Connect again.";
@@ -194,18 +209,37 @@ namespace toio.Experiments.ToioTacticalField
                 builderCube = connectedCubes[2];
                 RegisterFriendlyCubeListeners();
                 await observationCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
+                if (!isSceneActive)
+                {
+                    return;
+                }
+
                 await scoutCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
+                if (!isSceneActive)
+                {
+                    return;
+                }
 
                 RefreshLivePoint();
-                connectionMessage = "Friendly team connected. Next: press Convert Tactical Field.";
+                connectionMessage = "Friendly team connected. Building field and moving to the start line.";
                 roleMessage = FormatRoleMessage();
-                setupGuideMessage = "BLE address order decides roles. After conversion: Scout(-3,1), Transporter(-3,0), Builder(-3,-1).";
+                setupGuideMessage = "BLE address order decides roles. Auto start: Scout(-3,1), Transporter(-3,0), Builder(-3,-1).";
+                ConvertFixedTacticalField(false, "Fixed tactical field generated. Moving team to x=-3 start line.");
                 RefreshRuntimeUi();
                 await UniTask.Delay(roleAppealPauseMs);
-                await RunRoleAppeal("Transporter", observationCube);
-                await RunRoleAppeal("Scout", scoutCube);
-                await RunRoleAppeal("Builder", builderCube);
-                observationMessage = "Step 2: press Convert Tactical Field. Capture anchors are no longer required.";
+                if (!isSceneActive)
+                {
+                    return;
+                }
+
+                if (runRoleAppealBeforeStartLineMove)
+                {
+                    await RunRoleAppeal("Transporter", observationCube);
+                    await RunRoleAppeal("Scout", scoutCube);
+                    await RunRoleAppeal("Builder", builderCube);
+                }
+
+                await MoveFriendlyTeamToStartLine();
             }
             catch (Exception ex)
             {
@@ -215,7 +249,10 @@ namespace toio.Experiments.ToioTacticalField
             finally
             {
                 isConnecting = false;
-                RefreshRuntimeUi();
+                if (isSceneActive)
+                {
+                    RefreshRuntimeUi();
+                }
             }
         }
 
@@ -252,6 +289,11 @@ namespace toio.Experiments.ToioTacticalField
 
         public void OnConvertTacticalField()
         {
+            ConvertFixedTacticalField(true, "Step 3: check Scout / Transporter / Builder on the player start line.");
+        }
+
+        private bool ConvertFixedTacticalField(bool switchToFieldView, string convertedObservationMessage)
+        {
             ApplyFixedFieldLines();
 
             var axis = goalAnchor - startAnchor;
@@ -259,7 +301,7 @@ namespace toio.Experiments.ToioTacticalField
             {
                 tacticalFieldMessage = "Field: start and goal anchors must be different points.";
                 RefreshRuntimeUi();
-                return;
+                return false;
             }
 
             tacticalCellPoints = GenerateTacticalCellPoints(startAnchor, goalAnchor);
@@ -267,10 +309,15 @@ namespace toio.Experiments.ToioTacticalField
             RenderTacticalField(tacticalCellPoints);
             ResetTransporterRoute();
             tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | player x={PlayerStartLineX}, goal/enemy x={EnemyGoalLineX}";
-            observationMessage = "Step 3: place Scout / Transporter / Builder on the player start line.";
+            observationMessage = convertedObservationMessage;
             scoutMessage = FormatScoutMessage("Scout ready");
             RefreshRuntimeUi();
-            SetFieldView(true);
+            if (switchToFieldView)
+            {
+                SetFieldView(true);
+            }
+
+            return true;
         }
 
         public void OnRunTransporter()
@@ -513,6 +560,11 @@ namespace toio.Experiments.ToioTacticalField
             roleMessage = $"{roleName}: connected as {GetCubeLabel(cube)}. Short left-right appeal.";
             RefreshRuntimeUi();
             var ready = await WaitUntilCubeControllable(cube);
+            if (!isSceneActive)
+            {
+                return;
+            }
+
             if (!ready)
             {
                 roleMessage = $"{roleName}: connected as {GetCubeLabel(cube)}, but appeal skipped because the cube was not ready for motor orders.";
@@ -523,14 +575,111 @@ namespace toio.Experiments.ToioTacticalField
 
             cube.Move(roleAppealSpeed, -roleAppealSpeed, roleAppealTurnMs, Cube.ORDER_TYPE.Strong);
             await UniTask.Delay(roleAppealTurnMs + roleAppealPauseMs);
+            if (!isSceneActive)
+            {
+                return;
+            }
+
             await WaitUntilCubeControllable(cube);
             cube.Move(-roleAppealSpeed, roleAppealSpeed, roleAppealTurnMs, Cube.ORDER_TYPE.Strong);
             await UniTask.Delay(roleAppealTurnMs + roleAppealPauseMs);
+            if (!isSceneActive)
+            {
+                return;
+            }
+
             await WaitUntilCubeControllable(cube);
             cube.Move(0, 0, 80, Cube.ORDER_TYPE.Strong);
             await UniTask.Delay(roleAppealPauseMs);
+            if (!isSceneActive)
+            {
+                return;
+            }
+
             roleMessage = FormatRoleMessage();
             RefreshRuntimeUi();
+        }
+
+        private async UniTask MoveFriendlyTeamToStartLine()
+        {
+            if (!isSceneActive)
+            {
+                return;
+            }
+
+            if (tacticalCellPoints.Length == 0 && !ConvertFixedTacticalField(false, "Fixed tactical field generated. Moving team to x=-3 start line."))
+            {
+                return;
+            }
+
+            observationMessage = "Auto start-line move: sending Scout / Transporter / Builder to x=-3.";
+            scoutMessage = FormatScoutMessage("Scout start-line move queued");
+            RefreshRuntimeUi();
+
+            await MoveRoleToStartCell("Scout", scoutCube, ScoutStartCell, 71);
+            await MoveRoleToStartCell("Transporter", observationCube, TransporterStartCell, 72);
+            await MoveRoleToStartCell("Builder", builderCube, BuilderStartCell, 73);
+
+            if (!isSceneActive)
+            {
+                return;
+            }
+
+            scoutGridPosition = ScoutStartCell;
+            RenderTacticalField(tacticalCellPoints);
+            connectionMessage = "Friendly team connected. Start-line move sent.";
+            observationMessage = "Step 3: check the three cubes on x=-3, then use Scout controls.";
+            tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | player x={PlayerStartLineX}, goal/enemy x={EnemyGoalLineX} | auto start sent";
+            scoutMessage = FormatScoutMessage("Scout ready");
+            RefreshRuntimeUi();
+            SetFieldView(true);
+        }
+
+        private async UniTask MoveRoleToStartCell(string roleName, Cube cube, Vector2Int logicalCell, int configId)
+        {
+            if (!isSceneActive)
+            {
+                return;
+            }
+
+            if (cube == null || !cube.isConnected)
+            {
+                roleMessage = $"{roleName}: start-line move skipped; cube is not connected.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            if (!TryGetCellPoint(logicalCell, out var target))
+            {
+                roleMessage = $"{roleName}: start cell ({logicalCell.x},{logicalCell.y}) was not found.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            roleMessage = $"{roleName}: moving to start cell ({logicalCell.x},{logicalCell.y}).";
+            RefreshRuntimeUi();
+            var ready = await WaitUntilCubeControllable(cube);
+            if (!isSceneActive)
+            {
+                return;
+            }
+
+            if (!ready)
+            {
+                roleMessage = $"{roleName}: start-line move skipped because the cube was not ready for motor orders.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            cube.TargetMove(
+                Mathf.RoundToInt(target.x),
+                Mathf.RoundToInt(target.y),
+                CalculateMatAngle(target, goalAnchor),
+                configID: configId,
+                targetMoveType: Cube.TargetMoveType.RoundBeforeMove,
+                maxSpd: startLineMoveMaxSpeed
+            );
+            await UniTask.Delay(roleAppealPauseMs);
         }
 
         private async UniTask<bool> WaitUntilCubeControllable(Cube cube)
@@ -549,6 +698,11 @@ namespace toio.Experiments.ToioTacticalField
                 }
 
                 await UniTask.Delay(50);
+                if (!isSceneActive)
+                {
+                    return false;
+                }
+
                 elapsedMs += 50;
             }
 
@@ -890,7 +1044,7 @@ namespace toio.Experiments.ToioTacticalField
         {
             obstacleCells.Clear();
             detectedObstacleCells.Clear();
-            scoutGridPosition = new Vector2Int(PlayerStartLineX, 1);
+            scoutGridPosition = ScoutStartCell;
             enemyGridPosition = new Vector2Int(EnemyGoalLineX, 0);
             enemyDetected = false;
             scoutMessage = "Scout: field conversion required before discovery.";

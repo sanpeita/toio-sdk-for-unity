@@ -22,11 +22,12 @@ The repeated victory promise remains:
 
 - Connects three real toio Core Cubes one by one for the friendly team.
 - Assigns the connected cubes by BLE address order: `1 Transporter -> 2 Scout -> 3 Builder`.
-- Runs a short left-right turn appeal after each role connection so the physical cube-to-role pairing is visible without sound.
+- Automatically builds the fixed tactical field after the three roles connect, then sends Scout / Transporter / Builder to the `x=-3` start line.
+- Keeps the short left-right role appeal available as an Inspector option, but leaves it off by default to reduce BLE command density after connection.
 - Shows a Japanese setup guide using the bundled Noto Sans JP font asset.
 - Keeps `Capture Current Anchor` out of the main Phase 5 flow; fixed-map setup replaces the old observation-first flow.
 - Uses `Set Fixed Lines` as a manual confirmation of the fixed player line and goal/enemy line.
-- `Convert Tactical Field` automatically applies the fixed lines and creates a `7 x 5` logical field matching `x=-3..3` and `y=2..-2`.
+- `Convert Tactical Field` remains available as a manual rebuild button, and applies the fixed lines to create a `7 x 5` logical field matching `x=-3..3` and `y=2..-2`.
 - Renders start-side and goal-side colors so the player-side and fixed far side are easy to read.
 - Generates hidden random obstacle cells when `Convert Tactical Field` is pressed.
 - Places the player-side roles on the `x=-3` start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
@@ -45,23 +46,28 @@ The repeated victory promise remains:
 3. Power on the three player-side Core Cubes.
 4. Press `Connect Friendly Team`.
 5. Check the UI assignment order: `1 Transporter -> 2 Scout -> 3 Builder`. The current build uses BLE address order, not the physical order on the desk.
-6. Press `Convert Tactical Field`.
+6. Wait for the automatic fixed-field conversion and start-line move.
 7. Check that Unity shows the fixed logical field: `x=-3..3`, `y=2..-2`.
-8. Place Scout / Transporter / Builder on the player start line `x=-3`.
-9. Recommended placement: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
-10. Use the `FIELD VIEW` Scout controls to move one cell at a time.
-11. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
-12. Use the revealed obstacles as the Saturday short's stage overview.
-13. Return the Transporter cube to `(-3,0)`.
-14. Press `Run Grid Route`.
-15. Confirm route progress advances toward the `x=2` goal line and Unity shows `GOAL REACHED`.
+8. Check that the physical roles were sent to the player start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
+9. Use the `FIELD VIEW` Scout controls to move one cell at a time.
+10. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
+11. Use the revealed obstacles as the Saturday short's stage overview.
+12. Return the Transporter cube to `(-3,0)` if it was moved during Scout testing.
+13. Press `Run Grid Route`.
+14. Confirm route progress advances toward the `x=2` goal line and Unity shows `GOAL REACHED`.
 
-`Set Fixed Lines` is optional in normal use. It is there to make the fixed-map assumption visible on screen before conversion.
+`Set Fixed Lines` and `Convert Tactical Field` are optional in normal use. They remain on screen as manual recovery / rebuild controls.
+
+## Crash Note
+
+- A crash captured on 2026-06-13 was a native Windows BLE plugin crash during `toio.Windows.DllInterface.UpdateFromMainThread`, not a managed `ToioTacticalFieldController` exception.
+- The scene now stops async follow-up work when the controller is destroyed and reduces the default post-connect motor command burst by skipping role appeal unless explicitly enabled.
 
 ## Verification Status
 
 - Confirmed by static implementation review: Phase 5 UI entry points, Scout movement controls, scan radius logic, hidden obstacle generation, and detected obstacle rendering.
 - Confirmed by static implementation review: the Transporter route now uses logical cells from `(-3,0)` to `(2,0)`.
+- Confirmed by static implementation review: connected roles auto-convert the fixed field and queue start-line moves to Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 - Confirmed by `dotnet restore` + `dotnet build Assembly-CSharp.csproj`: C# build succeeds with no `ToioTacticalField` errors.
 - Needs Unity Editor asset import / Play Mode check after the bundled `Resources/Fonts/NotoSansJP-VF.ttf` is imported.
 - Needs Play Mode check: fallback anchors, field conversion, Scout movement, scan reveal, and Transporter `GOAL REACHED`.
