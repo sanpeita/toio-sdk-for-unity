@@ -21,7 +21,7 @@ The repeated victory promise remains:
 ## Implemented Features
 
 - Connects three real toio Core Cubes one by one for the friendly team.
-- Assigns the connected cubes, ordered by BLE address, to Transporter, Scout, and Builder.
+- Assigns the connected cubes by BLE address order: `1 Transporter -> 2 Scout -> 3 Builder`.
 - Runs a short left-right turn appeal after each role connection so the physical cube-to-role pairing is visible without sound.
 - Shows a Japanese setup guide using the bundled Noto Sans JP font asset.
 - Keeps `Capture Current Anchor` out of the main Phase 5 flow; fixed-map setup replaces the old observation-first flow.
@@ -42,16 +42,17 @@ The repeated victory promise remains:
 2. Play the scene.
 3. Power on the three player-side Core Cubes.
 4. Press `Connect Friendly Team`.
-5. Press `Convert Tactical Field`.
-6. Check that Unity shows the fixed logical field: `x=-3..3`, `y=2..-2`.
-7. Place Scout / Transporter / Builder on the player start line `x=-3`.
-8. Recommended placement: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
-9. Use Scout controls to move one cell at a time.
-10. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
-11. Use the revealed obstacles as the Saturday short's stage overview.
-12. Return the Transporter cube to `(-3,0)`.
-13. Press `Run Grid Route`.
-14. Confirm route progress advances toward the `x=2` goal line and Unity shows `GOAL REACHED`.
+5. Check the UI assignment order: `1 Transporter -> 2 Scout -> 3 Builder`. The current build uses BLE address order, not the physical order on the desk.
+6. Press `Convert Tactical Field`.
+7. Check that Unity shows the fixed logical field: `x=-3..3`, `y=2..-2`.
+8. Place Scout / Transporter / Builder on the player start line `x=-3`.
+9. Recommended placement: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
+10. Use Scout controls to move one cell at a time.
+11. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
+12. Use the revealed obstacles as the Saturday short's stage overview.
+13. Return the Transporter cube to `(-3,0)`.
+14. Press `Run Grid Route`.
+15. Confirm route progress advances toward the `x=2` goal line and Unity shows `GOAL REACHED`.
 
 `Set Fixed Lines` is optional in normal use. It is there to make the fixed-map assumption visible on screen before conversion.
 

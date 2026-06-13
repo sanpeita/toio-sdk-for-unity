@@ -101,8 +101,8 @@ namespace toio.Experiments.ToioTacticalField
         private string connectionMessage = "Not connected. Press Connect Friendly Team.";
         private string observationMessage = "Step 1: power on three Core Cubes, then connect the friendly team.";
         private string tacticalFieldMessage = "Field: fixed map ready. Press Convert Tactical Field.";
-        private string roleMessage = "Roles: Transporter / Scout / Builder awaiting connection.";
-        private string setupGuideMessage = "Setup: player start line x=-3. Goal/enemy standby line x=2.";
+        private string roleMessage = "Assign order: 1 Transporter -> 2 Scout -> 3 Builder. Awaiting connection.";
+        private string setupGuideMessage = "Cubes are assigned by BLE address order. Start line x=-3.";
         private string scoutMessage = "Scout: field conversion required before discovery.";
 
         private Text connectionStatusLabel;
@@ -185,7 +185,7 @@ namespace toio.Experiments.ToioTacticalField
                 if (connectedCubes.Count < FriendlyRoleCount)
                 {
                     connectionMessage = "Friendly team was not confirmed. Keep three cubes near the PC and press Connect again.";
-                    roleMessage = $"Roles: connected {connectedCubes.Count}/{FriendlyRoleCount}. Scout discovery needs all three friendly cubes.";
+                    roleMessage = $"Assign order: 1 Transporter -> 2 Scout -> 3 Builder. Connected {connectedCubes.Count}/{FriendlyRoleCount}.";
                     return;
                 }
 
@@ -199,7 +199,7 @@ namespace toio.Experiments.ToioTacticalField
                 RefreshLivePoint();
                 connectionMessage = "Friendly team connected. Next: press Convert Tactical Field.";
                 roleMessage = FormatRoleMessage();
-                setupGuideMessage = "After conversion, place Scout(-3,1), Transporter(-3,0), Builder(-3,-1).";
+                setupGuideMessage = "BLE address order decides roles. After conversion: Scout(-3,1), Transporter(-3,0), Builder(-3,-1).";
                 RefreshRuntimeUi();
                 await UniTask.Delay(roleAppealPauseMs);
                 await RunRoleAppeal("Transporter", observationCube);
@@ -397,7 +397,7 @@ namespace toio.Experiments.ToioTacticalField
                 connectionMessage = attempt == 1
                     ? "Scanning and connecting three friendly cubes one by one..."
                     : $"Retrying friendly team connection ({attempt}/{attemptCount})...";
-                roleMessage = $"Roles: waiting for Transporter / Scout / Builder ({attempt}/{attemptCount}).";
+                roleMessage = $"Assign order: 1 Transporter -> 2 Scout -> 3 Builder ({attempt}/{attemptCount}).";
                 RefreshRuntimeUi();
 
                 try
@@ -1112,10 +1112,10 @@ namespace toio.Experiments.ToioTacticalField
 
             var status = CreatePanel("Status", controlView.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 382f), CardColor, true);
             connectionStatusLabel = CreateText("Connection", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -16f), new Vector2(410f, 48f), true);
-            roleStatusLabel = CreateText("Roles", status.transform, string.Empty, 14, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -66f), new Vector2(410f, 54f), true);
-            setupGuideLabel = CreateText("SetupGuide", status.transform, string.Empty, 14, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -124f), new Vector2(410f, 48f), true);
-            observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -176f), new Vector2(410f, 48f), true);
-            scoutStatusLabel = CreateText("Scout", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, ScoutColor, new Vector2(20f, -230f), new Vector2(410f, 50f), true);
+            roleStatusLabel = CreateText("Roles", status.transform, string.Empty, 13, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -66f), new Vector2(410f, 70f), true);
+            setupGuideLabel = CreateText("SetupGuide", status.transform, string.Empty, 13, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -140f), new Vector2(410f, 50f), true);
+            observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -190f), new Vector2(410f, 42f), true);
+            scoutStatusLabel = CreateText("Scout", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, ScoutColor, new Vector2(20f, -240f), new Vector2(410f, 46f), true);
             anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 13, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -286f), new Vector2(410f, 58f), true);
             victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 22, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -344f), new Vector2(410f, 30f), true);
 
