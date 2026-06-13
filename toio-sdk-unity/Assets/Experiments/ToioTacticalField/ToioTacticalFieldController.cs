@@ -86,6 +86,7 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private int scoutMoveMaxSpeed = 45;
         [SerializeField] private int startLineMoveMaxSpeed = 40;
         [SerializeField] private int startLineMoveCommandSpacingMs = 450;
+        [SerializeField] private float startLineArrivalToleranceMatDots = 24f;
 
         private CubeManager cubeManager;
         private Cube observationCube;
@@ -95,6 +96,7 @@ namespace toio.Experiments.ToioTacticalField
         private readonly List<Cube> friendlyRoleCubes = new List<Cube>();
         private bool isSceneActive = true;
         private bool isConnecting;
+        private bool isStartLineRetrying;
         private bool cubeButtonPressed;
         private bool hasLivePoint;
         private bool hasStartAnchor;
@@ -298,6 +300,49 @@ namespace toio.Experiments.ToioTacticalField
         public void OnConvertTacticalField()
         {
             ConvertFixedTacticalField(true, "Step 3: check Scout / Transporter / Builder on the player start line.");
+        }
+
+        public async void OnRetryStartLineMoves()
+        {
+            if (isStartLineRetrying)
+            {
+                return;
+            }
+
+            if (!IsFriendlyTeamConnected)
+            {
+                observationMessage = "Connect the friendly team before retrying start-line moves.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            isStartLineRetrying = true;
+            try
+            {
+                if (tacticalCellPoints.Length == 0 && !ConvertFixedTacticalField(false, "Fixed tactical field generated. Retrying start-line moves."))
+                {
+                    return;
+                }
+
+                observationMessage = "Retry start line: checking role positions and resending missing moves.";
+                RefreshRuntimeUi();
+                var resent = await MoveMissingFriendlyRolesToStartLine();
+                if (!isSceneActive)
+                {
+                    return;
+                }
+
+                observationMessage = resent > 0
+                    ? $"Retry start line: resent {resent} role move(s). Check x=-3 again."
+                    : "Retry start line: all readable roles are already on x=-3.";
+                tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | start retry resent {resent}";
+                scoutMessage = FormatScoutMessage("Scout ready");
+                RefreshRuntimeUi();
+            }
+            finally
+            {
+                isStartLineRetrying = false;
+            }
         }
 
         private bool ConvertFixedTacticalField(bool switchToFieldView, string convertedObservationMessage)
@@ -686,25 +731,59 @@ namespace toio.Experiments.ToioTacticalField
             RefreshRuntimeUi();
         }
 
-        private async UniTask MoveRoleToStartCell(string roleName, Cube cube, Vector2Int logicalCell, int configId)
+        private async UniTask<int> MoveMissingFriendlyRolesToStartLine()
+        {
+            var resent = 0;
+            if (await MoveRoleToStartCellIfMissing("Transporter", observationCube, TransporterStartCell, 81))
+            {
+                resent++;
+            }
+
+            if (await MoveRoleToStartCellIfMissing("Scout", scoutCube, ScoutStartCell, 82))
+            {
+                resent++;
+            }
+
+            if (await MoveRoleToStartCellIfMissing("Builder", builderCube, BuilderStartCell, 83))
+            {
+                resent++;
+            }
+
+            return resent;
+        }
+
+        private async UniTask<bool> MoveRoleToStartCellIfMissing(string roleName, Cube cube, Vector2Int logicalCell, int configId)
+        {
+            if (IsRoleAtStartCell(cube, logicalCell, out var distance))
+            {
+                roleMessage = $"{roleName}: already at start cell ({logicalCell.x},{logicalCell.y}), distance {distance:F1}.";
+                RefreshRuntimeUi();
+                await UniTask.Delay(startLineMoveCommandSpacingMs);
+                return false;
+            }
+
+            return await MoveRoleToStartCell(roleName, cube, logicalCell, configId);
+        }
+
+        private async UniTask<bool> MoveRoleToStartCell(string roleName, Cube cube, Vector2Int logicalCell, int configId)
         {
             if (!isSceneActive)
             {
-                return;
+                return false;
             }
 
             if (cube == null || !cube.isConnected)
             {
                 roleMessage = $"{roleName}: start-line move skipped; cube is not connected.";
                 RefreshRuntimeUi();
-                return;
+                return false;
             }
 
             if (!TryGetCellPoint(logicalCell, out var target))
             {
                 roleMessage = $"{roleName}: start cell ({logicalCell.x},{logicalCell.y}) was not found.";
                 RefreshRuntimeUi();
-                return;
+                return false;
             }
 
             var moveSent = false;
@@ -715,7 +794,7 @@ namespace toio.Experiments.ToioTacticalField
                 var ready = await WaitUntilCubeControllable(cube);
                 if (!isSceneActive)
                 {
-                    return;
+                    return false;
                 }
 
                 if (!ready)
@@ -740,6 +819,39 @@ namespace toio.Experiments.ToioTacticalField
                 roleMessage = $"{roleName}: start-line move skipped because the cube was not ready for motor orders.";
                 RefreshRuntimeUi();
             }
+
+            return moveSent;
+        }
+
+        private bool IsRoleAtStartCell(Cube cube, Vector2Int logicalCell, out float distance)
+        {
+            distance = float.PositiveInfinity;
+            if (cube == null || !cube.isConnected || !TryGetCellPoint(logicalCell, out var target))
+            {
+                return false;
+            }
+
+            if (!HasReadableMatPosition(cube))
+            {
+                return false;
+            }
+
+            distance = Vector2.Distance(cube.pos, target);
+            return distance <= startLineArrivalToleranceMatDots;
+        }
+
+        private bool HasReadableMatPosition(Cube cube)
+        {
+            if (cube == null || !cube.isConnected)
+            {
+                return false;
+            }
+
+            var minX = Mathf.Min(fixedMapTopLeft.x, fixedMapBottomRight.x) - startLineArrivalToleranceMatDots;
+            var maxX = Mathf.Max(fixedMapTopLeft.x, fixedMapBottomRight.x) + startLineArrivalToleranceMatDots;
+            var minY = Mathf.Min(fixedMapTopLeft.y, fixedMapBottomRight.y) - startLineArrivalToleranceMatDots;
+            var maxY = Mathf.Max(fixedMapTopLeft.y, fixedMapBottomRight.y) + startLineArrivalToleranceMatDots;
+            return cube.x >= minX && cube.x <= maxX && cube.y >= minY && cube.y <= maxY;
         }
 
         private async UniTask<bool> WaitUntilCubeControllable(Cube cube)
@@ -1363,15 +1475,16 @@ namespace toio.Experiments.ToioTacticalField
             CreateButton("FixedLines", actions.transform, "Set Fixed Lines", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnUseFixedFieldLines, true);
             CreateButton("Convert", actions.transform, "Convert Tactical Field", new Vector2(0f, -130f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
             CreateButton("Run", actions.transform, "Run Grid Route", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
-            CreateButton("Clear", actions.transform, "Reset Field", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
-            CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -282f), new Vector2(276f, 38f), MutedTextColor, OnBackToLauncher, true);
+            CreateButton("RetryStart", actions.transform, "Retry Start Line", new Vector2(0f, -230f), new Vector2(276f, 38f), GoalColor, OnRetryStartLineMoves, true);
+            CreateButton("Clear", actions.transform, "Reset Field", new Vector2(0f, -276f), new Vector2(276f, 36f), LineColor, OnClearAnchors, true);
+            CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -320f), new Vector2(276f, 34f), MutedTextColor, OnBackToLauncher, true);
 
-            CreateText("ScoutTitle", actions.transform, "Scout Controls | move 1 / scan 2", 14, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, -332f), new Vector2(286f, 24f), true);
-            CreateButton("ScoutForward", actions.transform, "Forward", new Vector2(0f, -366f), new Vector2(132f, 32f), ScoutColor, OnScoutForward, true);
-            CreateButton("ScoutLeft", actions.transform, "Left", new Vector2(-72f, -404f), new Vector2(132f, 32f), ScoutColor, OnScoutLeft, true);
-            CreateButton("ScoutScan", actions.transform, "Scan", new Vector2(72f, -404f), new Vector2(132f, 32f), GoalColor, OnScoutScan, true);
-            CreateButton("ScoutRight", actions.transform, "Right", new Vector2(-72f, -442f), new Vector2(132f, 32f), ScoutColor, OnScoutRight, true);
-            CreateButton("ScoutBack", actions.transform, "Back", new Vector2(72f, -442f), new Vector2(132f, 32f), ScoutColor, OnScoutBack, true);
+            CreateText("ScoutTitle", actions.transform, "Scout Controls | move 1 / scan 2", 14, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, -366f), new Vector2(286f, 24f), true);
+            CreateButton("ScoutForward", actions.transform, "Forward", new Vector2(0f, -398f), new Vector2(132f, 30f), ScoutColor, OnScoutForward, true);
+            CreateButton("ScoutLeft", actions.transform, "Left", new Vector2(-72f, -432f), new Vector2(132f, 30f), ScoutColor, OnScoutLeft, true);
+            CreateButton("ScoutScan", actions.transform, "Scan", new Vector2(72f, -432f), new Vector2(132f, 30f), GoalColor, OnScoutScan, true);
+            CreateButton("ScoutRight", actions.transform, "Right", new Vector2(-72f, -466f), new Vector2(132f, 30f), ScoutColor, OnScoutRight, true);
+            CreateButton("ScoutBack", actions.transform, "Back", new Vector2(72f, -466f), new Vector2(132f, 30f), ScoutColor, OnScoutBack, true);
 
             fieldView = CreateUiObject("FieldView", root.transform);
             StretchFull(fieldView.GetComponent<RectTransform>());

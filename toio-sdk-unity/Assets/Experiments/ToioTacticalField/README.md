@@ -24,6 +24,7 @@ The repeated victory promise remains:
 - Assigns the connected cubes by connection order: `1 Transporter -> 2 Scout -> 3 Builder`.
 - Automatically builds the fixed tactical field after the three roles connect, then sends Transporter / Scout / Builder to the `x=-3` start line.
 - Keeps the control screen open after the automatic start-line move; the player opens `FIELD VIEW` manually after confirming all three cubes moved.
+- Provides `Retry Start Line` as a recovery control. It checks each role's current mat position and resends start-line movement only to roles that are not yet readable at their assigned start cell.
 - Keeps the short left-right role appeal available as an Inspector option, but leaves it off by default to reduce BLE command density after connection.
 - Shows a Japanese setup guide using the bundled Noto Sans JP font asset.
 - Keeps `Capture Current Anchor` out of the main Phase 5 flow; fixed-map setup replaces the old observation-first flow.
@@ -53,13 +54,14 @@ The repeated victory promise remains:
 6. Wait for the automatic fixed-field conversion and start-line move.
 7. Check that Unity shows the fixed logical field: `x=-3..3`, `y=2..-2`.
 8. Check that the physical roles were sent to the player start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
-9. Press `Open Field View` manually after the three start-line moves are confirmed.
-10. Use the `FIELD VIEW` Scout controls to move one cell at a time.
-11. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
-12. Use the revealed obstacles as the Saturday short's stage overview.
-13. Return the Transporter cube to `(-3,0)` if it was moved during Scout testing.
-14. Press `Run Grid Route`.
-15. Confirm route progress advances toward the `x=2` goal line and Unity shows `GOAL REACHED`.
+9. If a role did not reach its assigned start cell, press `Retry Start Line`.
+10. Press `Open Field View` manually after the three start-line moves are confirmed.
+11. Use the `FIELD VIEW` Scout controls to move one cell at a time.
+12. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
+13. Use the revealed obstacles as the Saturday short's stage overview.
+14. Return the Transporter cube to `(-3,0)` if it was moved during Scout testing.
+15. Press `Run Grid Route`.
+16. Confirm route progress advances toward the `x=2` goal line and Unity shows `GOAL REACHED`.
 
 `Set Fixed Lines` and `Convert Tactical Field` are optional in normal use. They remain on screen as manual recovery / rebuild controls.
 
