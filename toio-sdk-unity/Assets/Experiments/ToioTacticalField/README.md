@@ -31,6 +31,7 @@ The repeated victory promise remains:
 - Generates hidden random obstacle cells when `Convert Tactical Field` is pressed.
 - Places the player-side roles on the `x=-3` start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 - Moves Scout one cell at a time with separate Forward / Back / Left / Right controls.
+- Shows the same Scout controls in `FIELD VIEW` after `Convert Tactical Field`, so Scout can move and scan without returning to the control screen.
 - Scans Scout's Manhattan radius of two cells and reveals detected obstacle cells on the Unity field.
 - Reveals a placeholder enemy marker if Scout's scan radius reaches the fixed enemy-side marker.
 - Keeps the Transporter grid-route movement separate from Scout movement.
@@ -47,7 +48,7 @@ The repeated victory promise remains:
 7. Check that Unity shows the fixed logical field: `x=-3..3`, `y=2..-2`.
 8. Place Scout / Transporter / Builder on the player start line `x=-3`.
 9. Recommended placement: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
-10. Use Scout controls to move one cell at a time.
+10. Use the `FIELD VIEW` Scout controls to move one cell at a time.
 11. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
 12. Use the revealed obstacles as the Saturday short's stage overview.
 13. Return the Transporter cube to `(-3,0)`.

@@ -1139,6 +1139,13 @@ namespace toio.Experiments.ToioTacticalField
             var fieldViewBar = CreatePanel("FieldViewBar", fieldView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(780f, 54f), CardColor);
             fieldViewStatusLabel = CreateText("FieldViewStatus", fieldViewBar.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.MiddleLeft, TextColor, new Vector2(-90f, 0f), new Vector2(560f, 38f));
             CreateButton("ReturnToControls", fieldViewBar.transform, "Return To Controls", new Vector2(285f, 0f), new Vector2(180f, 36f), GoalColor, OnShowControlView);
+            var fieldScoutPanel = CreatePanel("FieldScoutControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 122f), new Vector2(326f, 190f), CardColor);
+            CreateText("FieldScoutTitle", fieldScoutPanel.transform, "Scout Controls", 15, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 66f), new Vector2(286f, 24f));
+            CreateButton("FieldScoutForward", fieldScoutPanel.transform, "Forward", new Vector2(0f, 32f), new Vector2(132f, 32f), ScoutColor, OnScoutForward);
+            CreateButton("FieldScoutLeft", fieldScoutPanel.transform, "Left", new Vector2(-72f, -6f), new Vector2(132f, 32f), ScoutColor, OnScoutLeft);
+            CreateButton("FieldScoutScan", fieldScoutPanel.transform, "Scan", new Vector2(72f, -6f), new Vector2(132f, 32f), GoalColor, OnScoutScan);
+            CreateButton("FieldScoutRight", fieldScoutPanel.transform, "Right", new Vector2(-72f, -44f), new Vector2(132f, 32f), ScoutColor, OnScoutRight);
+            CreateButton("FieldScoutBack", fieldScoutPanel.transform, "Back", new Vector2(72f, -44f), new Vector2(132f, 32f), ScoutColor, OnScoutBack);
             fieldView.SetActive(false);
         }
 
