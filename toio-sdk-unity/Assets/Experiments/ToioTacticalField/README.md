@@ -21,7 +21,7 @@ The repeated victory promise remains:
 ## Implemented Features
 
 - Connects three real toio Core Cubes one by one for the friendly team.
-- Assigns the connected cubes by BLE address order: `1 Transporter -> 2 Scout -> 3 Builder`.
+- Assigns the connected cubes by connection order: `1 Transporter -> 2 Scout -> 3 Builder`.
 - Automatically builds the fixed tactical field after the three roles connect, then sends Scout / Transporter / Builder to the `x=-3` start line.
 - Keeps the short left-right role appeal available as an Inspector option, but leaves it off by default to reduce BLE command density after connection.
 - Shows a Japanese setup guide using the bundled Noto Sans JP font asset.
@@ -34,6 +34,9 @@ The repeated victory promise remains:
 - Moves Scout one cell at a time with separate Forward / Back / Left / Right controls.
 - Defines Scout `Forward` as `+X`, from the player start line toward the enemy / goal line. `Left` is `+Y`; `Right` is `-Y`.
 - Shows the same Scout controls in `FIELD VIEW` after `Convert Tactical Field`, so Scout can move and scan without returning to the control screen.
+- Uses the toio simple playmat Position ID range `x=98..402`, `y=142..358` to calculate the center of each `7 x 5` logical cell.
+- Lets Scout move into hidden obstacle cells for the Saturday discovery demo; obstacles are discovery targets, not physical blockers in this phase.
+- Blocks Scout movement into the friendly Transporter / Builder start cells to reduce physical cube collisions.
 - Scans Scout's Manhattan radius of two cells and reveals detected obstacle cells on the Unity field.
 - Reveals a placeholder enemy marker if Scout's scan radius reaches the fixed enemy-side marker.
 - Keeps the Transporter grid-route movement separate from Scout movement.
@@ -45,7 +48,7 @@ The repeated victory promise remains:
 2. Play the scene.
 3. Power on the three player-side Core Cubes.
 4. Press `Connect Friendly Team`.
-5. Check the UI assignment order: `1 Transporter -> 2 Scout -> 3 Builder`. The current build uses BLE address order, not the physical order on the desk.
+5. Check the UI assignment order: `1 Transporter -> 2 Scout -> 3 Builder`. The current build uses connection order for role assignment.
 6. Wait for the automatic fixed-field conversion and start-line move.
 7. Check that Unity shows the fixed logical field: `x=-3..3`, `y=2..-2`.
 8. Check that the physical roles were sent to the player start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
@@ -60,8 +63,8 @@ The repeated victory promise remains:
 
 ## Crash Note
 
-- A crash captured on 2026-06-13 was a native Windows BLE plugin crash during `toio.Windows.DllInterface.UpdateFromMainThread`, not a managed `ToioTacticalFieldController` exception.
-- The scene now stops async follow-up work when the controller is destroyed and reduces the default post-connect motor command burst by skipping role appeal unless explicitly enabled.
+- A crash reported on 2026-06-13 was traced during device testing to discharged Core Cubes. Keep all three cubes charged before the friendly-team connection test.
+- The scene still stops async follow-up work when the controller is destroyed and reduces the default post-connect motor command burst by skipping role appeal unless explicitly enabled.
 
 ## Verification Status
 

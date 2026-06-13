@@ -63,8 +63,8 @@ namespace toio.Experiments.ToioTacticalField
         [Header("Tactical Field Convert")]
         [SerializeField] private float tacticalCellHeight = 0.12f;
         [SerializeField] private float tacticalCellFillRatio = 0.88f;
-        [SerializeField] private Vector2 fixedPlayerLineCenter = new Vector2(125f, 250f);
-        [SerializeField] private Vector2 fixedEnemyGoalLineCenter = new Vector2(375f, 250f);
+        [SerializeField] private Vector2 fixedMapTopLeft = new Vector2(98f, 142f);
+        [SerializeField] private Vector2 fixedMapBottomRight = new Vector2(402f, 358f);
 
         [Header("Straight Transporter Victory")]
         [SerializeField] private float transporterStartToleranceMatDots = 28f;
@@ -91,6 +91,7 @@ namespace toio.Experiments.ToioTacticalField
         private Cube scoutCube;
         private Cube builderCube;
         private string observationListenerKey;
+        private readonly List<Cube> friendlyRoleCubes = new List<Cube>();
         private bool isSceneActive = true;
         private bool isConnecting;
         private bool cubeButtonPressed;
@@ -107,8 +108,8 @@ namespace toio.Experiments.ToioTacticalField
         private string connectionMessage = "Not connected. Press Connect Friendly Team.";
         private string observationMessage = "Step 1: power on three Core Cubes, then connect the friendly team.";
         private string tacticalFieldMessage = "Field: fixed map ready. Press Convert Tactical Field.";
-        private string roleMessage = "Assign order: 1 Transporter -> 2 Scout -> 3 Builder. Awaiting connection.";
-        private string setupGuideMessage = "Cubes are assigned by BLE address order. Start line x=-3.";
+        private string roleMessage = "Connect order: 1 Transporter -> 2 Scout -> 3 Builder. Awaiting connection.";
+        private string setupGuideMessage = "Cubes are assigned by connection order. Start line x=-3.";
         private string scoutMessage = "Scout: field conversion required before discovery.";
 
         private Text connectionStatusLabel;
@@ -200,7 +201,7 @@ namespace toio.Experiments.ToioTacticalField
                 if (connectedCubes.Count < FriendlyRoleCount)
                 {
                     connectionMessage = "Friendly team was not confirmed. Keep three cubes near the PC and press Connect again.";
-                    roleMessage = $"Assign order: 1 Transporter -> 2 Scout -> 3 Builder. Connected {connectedCubes.Count}/{FriendlyRoleCount}.";
+                    roleMessage = $"Connect order: 1 Transporter -> 2 Scout -> 3 Builder. Connected {connectedCubes.Count}/{FriendlyRoleCount}.";
                     return;
                 }
 
@@ -220,10 +221,16 @@ namespace toio.Experiments.ToioTacticalField
                     return;
                 }
 
+                await builderCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
+                if (!isSceneActive)
+                {
+                    return;
+                }
+
                 RefreshLivePoint();
                 connectionMessage = "Friendly team connected. Building field and moving to the start line.";
                 roleMessage = FormatRoleMessage();
-                setupGuideMessage = "BLE address order decides roles. Auto start: Scout(-3,1), Transporter(-3,0), Builder(-3,-1).";
+                setupGuideMessage = "Connection order decides roles. Auto start: Scout(-3,1), Transporter(-3,0), Builder(-3,-1).";
                 ConvertFixedTacticalField(false, "Fixed tactical field generated. Moving team to x=-3 start line.");
                 RefreshRuntimeUi();
                 await UniTask.Delay(roleAppealPauseMs);
@@ -441,10 +448,11 @@ namespace toio.Experiments.ToioTacticalField
             var attemptCount = Mathf.Max(1, connectMaxAttempts);
             for (var attempt = 1; attempt <= attemptCount; attempt++)
             {
+                friendlyRoleCubes.Clear();
                 connectionMessage = attempt == 1
                     ? "Scanning and connecting three friendly cubes one by one..."
                     : $"Retrying friendly team connection ({attempt}/{attemptCount})...";
-                roleMessage = $"Assign order: 1 Transporter -> 2 Scout -> 3 Builder ({attempt}/{attemptCount}).";
+                roleMessage = $"Connect order: 1 Transporter -> 2 Scout -> 3 Builder ({attempt}/{attemptCount}).";
                 RefreshRuntimeUi();
 
                 try
@@ -456,7 +464,7 @@ namespace toio.Experiments.ToioTacticalField
                     Debug.LogException(ex);
                 }
 
-                var connected = GetOrderedConnectedCubes();
+                var connected = GetRoleAssignedConnectedCubes();
                 if (connected.Count >= FriendlyRoleCount)
                 {
                     return connected;
@@ -476,30 +484,73 @@ namespace toio.Experiments.ToioTacticalField
         private async UniTask ConnectFriendlyCubesOneByOne()
         {
             var guard = 0;
-            while (GetOrderedConnectedCubes().Count < FriendlyRoleCount && guard < FriendlyRoleCount + 2)
+            while (GetRoleAssignedConnectedCubes().Count < FriendlyRoleCount && guard < FriendlyRoleCount + 2)
             {
                 guard++;
                 connectionMessage = $"Connecting friendly cube {Mathf.Min(guard, FriendlyRoleCount)}/{FriendlyRoleCount}...";
                 RefreshRuntimeUi();
-                await cubeManager.SingleConnect();
+                var cube = await cubeManager.SingleConnect();
+                RegisterFriendlyRoleCandidate(cube);
                 await UniTask.Delay(roleAppealPauseMs);
             }
         }
 
-        private IReadOnlyList<Cube> GetOrderedConnectedCubes()
+        private IReadOnlyList<Cube> GetRoleAssignedConnectedCubes()
         {
             if (cubeManager == null)
             {
                 return Array.Empty<Cube>();
             }
 
-            return cubeManager.connectedCubes
-                .Where(cube => cube != null && cube.isConnected)
-                .GroupBy(cube => string.IsNullOrEmpty(cube.addr) ? cube.GetHashCode().ToString() : cube.addr)
-                .Select(group => group.First())
-                .OrderBy(cube => cube.addr)
-                .Take(FriendlyRoleCount)
-                .ToList();
+            var assigned = new List<Cube>();
+            foreach (var cube in friendlyRoleCubes)
+            {
+                AddDistinctConnectedCube(assigned, cube);
+            }
+
+            foreach (var cube in cubeManager.connectedCubes)
+            {
+                AddDistinctConnectedCube(assigned, cube);
+            }
+
+            return assigned.Take(FriendlyRoleCount).ToList();
+        }
+
+        private void RegisterFriendlyRoleCandidate(Cube cube)
+        {
+            if (cube == null)
+            {
+                return;
+            }
+
+            AddDistinctConnectedCube(friendlyRoleCubes, cube);
+            roleMessage = FormatConnectionOrderProgress();
+            RefreshRuntimeUi();
+        }
+
+        private static void AddDistinctConnectedCube(List<Cube> target, Cube cube)
+        {
+            if (cube == null || !cube.isConnected)
+            {
+                return;
+            }
+
+            var cubeKey = GetCubeIdentity(cube);
+            if (target.Any(existing => GetCubeIdentity(existing) == cubeKey))
+            {
+                return;
+            }
+
+            target.Add(cube);
+        }
+
+        private string FormatConnectionOrderProgress()
+        {
+            var roles = GetRoleAssignedConnectedCubes();
+            return
+                $"Connect order: 1 Transporter -> 2 Scout -> 3 Builder\n" +
+                $"1 Transporter: {FormatRoleCube(roles.Count > 0 ? roles[0] : null)}\n" +
+                $"2 Scout: {FormatRoleCube(roles.Count > 1 ? roles[1] : null)} | 3 Builder: {FormatRoleCube(roles.Count > 2 ? roles[2] : null)}";
         }
 
         private ConnectType ResolveConnectType()
@@ -853,9 +904,6 @@ namespace toio.Experiments.ToioTacticalField
 
         private Vector2[] GenerateTacticalCellPoints(Vector2 start, Vector2 goal)
         {
-            var forward = (goal - start).normalized;
-            var up = new Vector2(-forward.y, forward.x);
-            var cellSize = Vector2.Distance(start, goal) / (EnemyGoalLineX - PlayerStartLineX);
             var points = new Vector2[TacticalFieldColumns * TacticalFieldRows];
             var index = 0;
             for (var row = 0; row < TacticalFieldRows; row++)
@@ -864,14 +912,23 @@ namespace toio.Experiments.ToioTacticalField
                 for (var column = 0; column < TacticalFieldColumns; column++)
                 {
                     var logicalX = MinGridX + column;
-                    points[index++] =
-                        start +
-                        forward * ((logicalX - PlayerStartLineX) * cellSize) +
-                        up * (logicalY * cellSize);
+                    points[index++] = GetFixedMapCellCenter(new Vector2Int(logicalX, logicalY));
                 }
             }
 
             return points;
+        }
+
+        private Vector2 GetFixedMapCellCenter(Vector2Int logical)
+        {
+            var column = logical.x - MinGridX;
+            var row = MaxGridY - logical.y;
+            var cellWidth = Mathf.Abs(fixedMapBottomRight.x - fixedMapTopLeft.x) / TacticalFieldColumns;
+            var cellHeight = Mathf.Abs(fixedMapBottomRight.y - fixedMapTopLeft.y) / TacticalFieldRows;
+            return new Vector2(
+                Mathf.Min(fixedMapTopLeft.x, fixedMapBottomRight.x) + (column + 0.5f) * cellWidth,
+                Mathf.Min(fixedMapTopLeft.y, fixedMapBottomRight.y) + (row + 0.5f) * cellHeight
+            );
         }
 
         private Vector2[] GenerateTransporterRoutePoints()
@@ -939,7 +996,9 @@ namespace toio.Experiments.ToioTacticalField
         private void RenderTacticalField(Vector2[] points)
         {
             DestroyTacticalFieldCells();
-            var cellSize = Vector2.Distance(startAnchor, goalAnchor) / TacticalFieldRows;
+            var cellWidth = Mathf.Abs(fixedMapBottomRight.x - fixedMapTopLeft.x) / TacticalFieldColumns;
+            var cellHeight = Mathf.Abs(fixedMapBottomRight.y - fixedMapTopLeft.y) / TacticalFieldRows;
+            var cellSize = Mathf.Min(cellWidth, cellHeight);
             var worldCellSize = cellSize * matToUnityScale * tacticalCellFillRatio;
             var worldForward = MatToWorld(goalAnchor, tacticalCellHeight) - MatToWorld(startAnchor, tacticalCellHeight);
             var rotation = Quaternion.LookRotation(worldForward);
@@ -974,8 +1033,8 @@ namespace toio.Experiments.ToioTacticalField
         private void ApplyFixedFieldLines()
         {
             ClearTacticalField();
-            startAnchor = fixedPlayerLineCenter;
-            goalAnchor = fixedEnemyGoalLineCenter;
+            startAnchor = GetFixedMapCellCenter(TransporterStartCell);
+            goalAnchor = GetFixedMapCellCenter(new Vector2Int(EnemyGoalLineX, 0));
             startSource = "fixed x=-3";
             goalSource = "fixed x=2";
             hasStartAnchor = true;
@@ -1081,6 +1140,13 @@ namespace toio.Experiments.ToioTacticalField
                 return;
             }
 
+            if (IsFriendlyReservedCell(next))
+            {
+                scoutMessage = FormatScoutMessage($"blocked by friendly cube ({directionName})");
+                RefreshRuntimeUi();
+                return;
+            }
+
             var previousPoint = TryGetCellPoint(scoutGridPosition, out var current)
                 ? current
                 : target;
@@ -1097,6 +1163,16 @@ namespace toio.Experiments.ToioTacticalField
             RenderTacticalField(tacticalCellPoints);
             RefreshRuntimeUi();
             SetFieldView(true);
+        }
+
+        private bool IsFriendlyReservedCell(Vector2Int logical)
+        {
+            if (logical == TransporterStartCell && observationCube != null && observationCube.isConnected)
+            {
+                return true;
+            }
+
+            return logical == BuilderStartCell && builderCube != null && builderCube.isConnected;
         }
 
         private bool IsWithinScoutSearch(Vector2Int target)
@@ -1293,13 +1369,13 @@ namespace toio.Experiments.ToioTacticalField
             var fieldViewBar = CreatePanel("FieldViewBar", fieldView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(780f, 54f), CardColor);
             fieldViewStatusLabel = CreateText("FieldViewStatus", fieldViewBar.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.MiddleLeft, TextColor, new Vector2(-90f, 0f), new Vector2(560f, 38f));
             CreateButton("ReturnToControls", fieldViewBar.transform, "Return To Controls", new Vector2(285f, 0f), new Vector2(180f, 36f), GoalColor, OnShowControlView);
-            var fieldScoutPanel = CreatePanel("FieldScoutControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 122f), new Vector2(326f, 190f), CardColor);
+            var fieldScoutPanel = CreatePanel("FieldScoutControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 96f), new Vector2(326f, 164f), CardColor);
             CreateText("FieldScoutTitle", fieldScoutPanel.transform, "Scout Controls", 15, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 66f), new Vector2(286f, 24f));
-            CreateButton("FieldScoutForward", fieldScoutPanel.transform, "Forward", new Vector2(0f, 32f), new Vector2(132f, 32f), ScoutColor, OnScoutForward);
-            CreateButton("FieldScoutLeft", fieldScoutPanel.transform, "Left", new Vector2(-72f, -6f), new Vector2(132f, 32f), ScoutColor, OnScoutLeft);
-            CreateButton("FieldScoutScan", fieldScoutPanel.transform, "Scan", new Vector2(72f, -6f), new Vector2(132f, 32f), GoalColor, OnScoutScan);
-            CreateButton("FieldScoutRight", fieldScoutPanel.transform, "Right", new Vector2(-72f, -44f), new Vector2(132f, 32f), ScoutColor, OnScoutRight);
-            CreateButton("FieldScoutBack", fieldScoutPanel.transform, "Back", new Vector2(72f, -44f), new Vector2(132f, 32f), ScoutColor, OnScoutBack);
+            CreateButton("FieldScoutForward", fieldScoutPanel.transform, "Forward", new Vector2(0f, 34f), new Vector2(132f, 30f), ScoutColor, OnScoutForward);
+            CreateButton("FieldScoutLeft", fieldScoutPanel.transform, "Left", new Vector2(-72f, -2f), new Vector2(132f, 30f), ScoutColor, OnScoutLeft);
+            CreateButton("FieldScoutScan", fieldScoutPanel.transform, "Scan", new Vector2(72f, -2f), new Vector2(132f, 30f), GoalColor, OnScoutScan);
+            CreateButton("FieldScoutRight", fieldScoutPanel.transform, "Right", new Vector2(-72f, -38f), new Vector2(132f, 30f), ScoutColor, OnScoutRight);
+            CreateButton("FieldScoutBack", fieldScoutPanel.transform, "Back", new Vector2(72f, -38f), new Vector2(132f, 30f), ScoutColor, OnScoutBack);
             fieldView.SetActive(false);
         }
 
@@ -1382,6 +1458,26 @@ namespace toio.Experiments.ToioTacticalField
         private static string GetCubeLabel(Cube cube)
         {
             return cube == null || string.IsNullOrEmpty(cube.addr) ? "cube" : cube.addr;
+        }
+
+        private static string GetCubeIdentity(Cube cube)
+        {
+            if (cube == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(cube.addr))
+            {
+                return cube.addr;
+            }
+
+            if (!string.IsNullOrEmpty(cube.id))
+            {
+                return cube.id;
+            }
+
+            return cube.GetHashCode().ToString();
         }
 
         private static GameObject CreateMarker(string name, Transform parent, Color color, float diameter, float height)
