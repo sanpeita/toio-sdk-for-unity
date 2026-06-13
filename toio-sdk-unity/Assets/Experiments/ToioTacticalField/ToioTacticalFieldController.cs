@@ -1084,7 +1084,7 @@ namespace toio.Experiments.ToioTacticalField
             anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 13, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -286f), new Vector2(410f, 58f), true);
             victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 22, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -344f), new Vector2(410f, 30f), true);
 
-            var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 382f), CardColor, false, true);
+            var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 548f), CardColor, false, true);
             CreateButton("Connect", actions.transform, "Connect Friendly Team", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
             CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnCaptureCurrentAnchor, true);
             CreateButton("Convert", actions.transform, "Convert Tactical Field", new Vector2(0f, -130f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
@@ -1092,13 +1092,12 @@ namespace toio.Experiments.ToioTacticalField
             CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
             CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -282f), new Vector2(276f, 38f), MutedTextColor, OnBackToLauncher, true);
 
-            var scoutPanel = CreatePanel("ScoutControls", controlView.transform, new Vector2(0.5f, 0f), new Vector2(0f, 94f), new Vector2(720f, 150f), CardColor);
-            CreateText("ScoutTitle", scoutPanel.transform, "Scout Controls | 1マス移動 / 半径2マスサーチ", 16, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 48f), new Vector2(650f, 28f));
-            CreateButton("ScoutForward", scoutPanel.transform, "Forward", new Vector2(0f, 14f), new Vector2(132f, 34f), ScoutColor, OnScoutForward);
-            CreateButton("ScoutLeft", scoutPanel.transform, "Left", new Vector2(-145f, -28f), new Vector2(132f, 34f), ScoutColor, OnScoutLeft);
-            CreateButton("ScoutScan", scoutPanel.transform, "Scan", new Vector2(0f, -28f), new Vector2(132f, 34f), GoalColor, OnScoutScan);
-            CreateButton("ScoutRight", scoutPanel.transform, "Right", new Vector2(145f, -28f), new Vector2(132f, 34f), ScoutColor, OnScoutRight);
-            CreateButton("ScoutBack", scoutPanel.transform, "Back", new Vector2(0f, -70f), new Vector2(132f, 34f), ScoutColor, OnScoutBack);
+            CreateText("ScoutTitle", actions.transform, "Scout Controls | move 1 / scan 2", 14, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, -332f), new Vector2(286f, 24f), true);
+            CreateButton("ScoutForward", actions.transform, "Forward", new Vector2(0f, -366f), new Vector2(132f, 32f), ScoutColor, OnScoutForward, true);
+            CreateButton("ScoutLeft", actions.transform, "Left", new Vector2(-72f, -404f), new Vector2(132f, 32f), ScoutColor, OnScoutLeft, true);
+            CreateButton("ScoutScan", actions.transform, "Scan", new Vector2(72f, -404f), new Vector2(132f, 32f), GoalColor, OnScoutScan, true);
+            CreateButton("ScoutRight", actions.transform, "Right", new Vector2(-72f, -442f), new Vector2(132f, 32f), ScoutColor, OnScoutRight, true);
+            CreateButton("ScoutBack", actions.transform, "Back", new Vector2(72f, -442f), new Vector2(132f, 32f), ScoutColor, OnScoutBack, true);
 
             fieldView = CreateUiObject("FieldView", root.transform);
             StretchFull(fieldView.GetComponent<RectTransform>());
