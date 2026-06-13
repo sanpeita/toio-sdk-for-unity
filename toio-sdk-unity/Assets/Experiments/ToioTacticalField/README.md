@@ -76,9 +76,14 @@ The repeated victory promise remains:
 - Confirmed by static implementation review: the Transporter route now uses logical cells from `(-3,0)` to `(2,0)`.
 - Confirmed by static implementation review: connected roles auto-convert the fixed field and queue start-line moves to Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 - Confirmed by `dotnet restore` + `dotnet build Assembly-CSharp.csproj`: C# build succeeds with no `ToioTacticalField` errors.
+- Confirmed by 2026-06-13 device test: Scout movement and scan reveal work after manual start-line recovery.
+- Known device-test issue: one cube may ignore automatic start-line `TargetMove` and `Retry Start Line` even though BLE connection and ID acquisition are visible. Test another Core Cube / firmware state before adding more setup logic.
 - Needs Unity Editor asset import / Play Mode check after the bundled `Resources/Fonts/NotoSansJP-VF.ttf` is imported.
-- Needs Play Mode check: fallback anchors, field conversion, Scout movement, scan reveal, and Transporter `GOAL REACHED`.
-- Needs device check: three-cube role assignment, Scout physical movement, real mat coordinate alignment, and Transporter route recovery after map construction.
+- Needs future check: Transporter `GOAL REACHED` after Scout-driven map reveal.
+
+## Device Logs
+
+- `Logs/2026-06-13-phase5-device-test.md`
 
 ## Saturday Short Hook
 
