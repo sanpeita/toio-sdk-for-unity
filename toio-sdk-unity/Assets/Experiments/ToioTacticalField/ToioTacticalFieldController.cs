@@ -15,10 +15,15 @@ namespace toio.Experiments.ToioTacticalField
     {
         private const string LauncherSceneName = "ToioLauncher";
         private const string RootName = "ToioTacticalFieldRoot";
-        private const string VersionLabel = "Phase 4";
-        private const int TacticalFieldColumns = 5;
-        private const int TacticalFieldRows = 7;
+        private const string VersionLabel = "Phase 5";
+        private const int TacticalFieldColumns = 7;
+        private const int TacticalFieldRows = 5;
         private const int FriendlyRoleCount = 3;
+        private const int MinGridX = -3;
+        private const int MaxGridX = 3;
+        private const int MinGridY = -2;
+        private const int MaxGridY = 2;
+        private const string JapaneseFontResourcePath = "Fonts/NotoSansJP-VF";
 
         private static readonly Color BackgroundColor = new Color(0.055f, 0.075f, 0.07f, 1f);
         private static readonly Color PanelColor = new Color(0.105f, 0.145f, 0.13f, 0.97f);
@@ -29,6 +34,10 @@ namespace toio.Experiments.ToioTacticalField
         private static readonly Color GridColor = new Color(0.2f, 0.54f, 0.42f, 0.76f);
         private static readonly Color GridStartColor = new Color(0.28f, 0.78f, 0.58f, 0.9f);
         private static readonly Color GridGoalColor = new Color(0.92f, 0.62f, 0.24f, 0.9f);
+        private static readonly Color ScoutColor = new Color(0.36f, 0.72f, 1f, 0.95f);
+        private static readonly Color ScanColor = new Color(0.5f, 0.84f, 1f, 0.26f);
+        private static readonly Color ObstacleColor = new Color(0.96f, 0.32f, 0.28f, 0.96f);
+        private static readonly Color EnemyColor = new Color(0.78f, 0.38f, 0.94f, 0.96f);
         private static readonly Color TextColor = new Color(0.93f, 0.98f, 0.94f, 1f);
         private static readonly Color MutedTextColor = new Color(0.68f, 0.78f, 0.7f, 1f);
 
@@ -62,6 +71,12 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private int roleAppealPauseMs = 180;
         [SerializeField] private int roleAppealReadyTimeoutMs = 2200;
 
+        [Header("Phase 5 Scout Discovery")]
+        [SerializeField] private int phase5ObstacleCount = 5;
+        [SerializeField] private int phase5RandomSeed = 503;
+        [SerializeField] private int scoutSearchRadiusCells = 2;
+        [SerializeField] private int scoutMoveMaxSpeed = 45;
+
         private CubeManager cubeManager;
         private Cube observationCube;
         private Cube scoutCube;
@@ -83,13 +98,18 @@ namespace toio.Experiments.ToioTacticalField
         private string observationMessage = "Awaiting start anchor observation.";
         private string tacticalFieldMessage = "Field: awaiting anchor conversion.";
         private string roleMessage = "Roles: Transporter / Scout / Builder awaiting connection.";
+        private string setupGuideMessage = "設置: Scout / Transporter / Builder をスタートラインに並べる";
+        private string scoutMessage = "Scout: field conversion required before discovery.";
 
         private Text connectionStatusLabel;
         private Text roleStatusLabel;
         private Text observationStatusLabel;
         private Text anchorStatusLabel;
+        private Text setupGuideLabel;
+        private Text scoutStatusLabel;
         private Text victoryStatusLabel;
         private Text fieldViewStatusLabel;
+        private static Font cachedUiFont;
         private Image rootBackground;
         private GameObject controlView;
         private GameObject fieldView;
@@ -99,9 +119,15 @@ namespace toio.Experiments.ToioTacticalField
         private GameObject observationLine;
         private Transform tacticalFieldRoot;
         private readonly List<GameObject> tacticalFieldCells = new List<GameObject>();
+        private readonly List<GameObject> scoutDiscoveryMarkers = new List<GameObject>();
+        private readonly HashSet<Vector2Int> obstacleCells = new HashSet<Vector2Int>();
+        private readonly HashSet<Vector2Int> detectedObstacleCells = new HashSet<Vector2Int>();
         private Vector2[] tacticalCellPoints = Array.Empty<Vector2>();
         private Vector2[] transporterRoutePoints = Array.Empty<Vector2>();
+        private Vector2Int scoutGridPosition = new Vector2Int(-1, MaxGridY);
+        private Vector2Int enemyGridPosition = new Vector2Int(0, MinGridY);
         private int transporterRouteIndex = -1;
+        private bool enemyDetected;
 
         private bool IsCubeConnected => observationCube != null && observationCube.isConnected;
         private bool IsFriendlyTeamConnected =>
@@ -155,19 +181,21 @@ namespace toio.Experiments.ToioTacticalField
                 if (connectedCubes.Count < FriendlyRoleCount)
                 {
                     connectionMessage = "Friendly team was not confirmed. Keep three cubes near the PC and press Connect again.";
-                    roleMessage = $"Roles: connected {connectedCubes.Count}/{FriendlyRoleCount}. Scout and Builder behavior remains out of scope.";
+                    roleMessage = $"Roles: connected {connectedCubes.Count}/{FriendlyRoleCount}. Scout discovery needs all three friendly cubes.";
                     return;
                 }
 
                 observationCube = connectedCubes[0];
                 scoutCube = connectedCubes[1];
                 builderCube = connectedCubes[2];
-                RegisterCube(observationCube);
+                RegisterFriendlyCubeListeners();
                 await observationCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
+                await scoutCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
 
                 RefreshLivePoint();
-                connectionMessage = "Friendly team connected. Transporter will keep observation and grid-route duties.";
+                connectionMessage = "Friendly team connected. Place Scout / Transporter / Builder on the start line.";
                 roleMessage = FormatRoleMessage();
+                setupGuideMessage = "設置: Scout(-1,2) / Transporter(0,2) / Builder(1,2)。奥側の敵ラインは固定。";
                 RefreshRuntimeUi();
                 await UniTask.Delay(roleAppealPauseMs);
                 await RunRoleAppeal("Transporter", observationCube);
@@ -200,6 +228,7 @@ namespace toio.Experiments.ToioTacticalField
             transporterGoalReached = false;
             transporterRouteIndex = -1;
             transporterRoutePoints = Array.Empty<Vector2>();
+            ResetScoutDiscovery();
             ClearTacticalField();
             startSource = "--";
             goalSource = "--";
@@ -226,10 +255,12 @@ namespace toio.Experiments.ToioTacticalField
             }
 
             tacticalCellPoints = GenerateTacticalCellPoints(startAnchor, goalAnchor);
+            GeneratePhase5MapFeatures();
             RenderTacticalField(tacticalCellPoints);
             ResetTransporterRoute();
-            tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | {TacticalFieldColumns} x {TacticalFieldRows}";
-            observationMessage = "Observed axis converted into the Ordia tactical field.";
+            tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | x:{MinGridX}..{MaxGridX} / y:{MaxGridY}..{MinGridY}";
+            observationMessage = "Observed axis converted into the Ordia tactical field. Scout can now search.";
+            scoutMessage = FormatScoutMessage("Scout ready");
             RefreshRuntimeUi();
             SetFieldView(true);
         }
@@ -290,6 +321,57 @@ namespace toio.Experiments.ToioTacticalField
         public void OnShowControlView()
         {
             SetFieldView(false);
+        }
+
+        public void OnScoutForward()
+        {
+            MoveScoutBy(new Vector2Int(0, -1), "forward");
+        }
+
+        public void OnScoutBack()
+        {
+            MoveScoutBy(new Vector2Int(0, 1), "back");
+        }
+
+        public void OnScoutLeft()
+        {
+            MoveScoutBy(new Vector2Int(-1, 0), "left");
+        }
+
+        public void OnScoutRight()
+        {
+            MoveScoutBy(new Vector2Int(1, 0), "right");
+        }
+
+        public void OnScoutScan()
+        {
+            if (tacticalCellPoints.Length == 0)
+            {
+                scoutMessage = "Scout: Convert Tactical Field first.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            var beforeObstacleCount = detectedObstacleCells.Count;
+            foreach (var obstacle in obstacleCells)
+            {
+                if (IsWithinScoutSearch(obstacle))
+                {
+                    detectedObstacleCells.Add(obstacle);
+                }
+            }
+
+            if (IsWithinScoutSearch(enemyGridPosition))
+            {
+                enemyDetected = true;
+            }
+
+            RenderTacticalField(tacticalCellPoints);
+            var detectedDelta = detectedObstacleCells.Count - beforeObstacleCount;
+            scoutMessage = FormatScoutMessage($"SCAN radius {scoutSearchRadiusCells}: +{detectedDelta} obstacle(s), enemy {(enemyDetected ? "detected" : "unknown")}");
+            tacticalFieldMessage = $"SCOUT SCAN UPDATED | obstacles {detectedObstacleCells.Count}/{obstacleCells.Count}";
+            RefreshRuntimeUi();
+            SetFieldView(true);
         }
 
         private async UniTask<IReadOnlyList<Cube>> ConnectFriendlyTeam()
@@ -370,22 +452,41 @@ namespace toio.Experiments.ToioTacticalField
             return connectType;
         }
 
-        private void RegisterCube(Cube cube)
+        private void RegisterFriendlyCubeListeners()
         {
             RemoveListeners();
+            RegisterCube(observationCube);
+            RegisterCube(scoutCube);
+            RegisterCube(builderCube);
+        }
+
+        private void RegisterCube(Cube cube)
+        {
+            if (cube == null)
+            {
+                return;
+            }
+
             cube.idCallback.AddListener(observationListenerKey, OnCubeId);
             cube.buttonCallback.AddListener(observationListenerKey, OnCubeButton);
         }
 
         private void RemoveListeners()
         {
-            if (observationCube == null)
+            RemoveCubeListeners(observationCube);
+            RemoveCubeListeners(scoutCube);
+            RemoveCubeListeners(builderCube);
+        }
+
+        private void RemoveCubeListeners(Cube cube)
+        {
+            if (cube == null)
             {
                 return;
             }
 
-            observationCube.idCallback.RemoveListener(observationListenerKey);
-            observationCube.buttonCallback.RemoveListener(observationListenerKey);
+            cube.idCallback.RemoveListener(observationListenerKey);
+            cube.buttonCallback.RemoveListener(observationListenerKey);
         }
 
         private async UniTask RunRoleAppeal(string roleName, Cube cube)
@@ -442,11 +543,19 @@ namespace toio.Experiments.ToioTacticalField
 
         private void OnCubeId(Cube cube)
         {
-            CaptureLivePoint(cube);
+            if (cube == observationCube)
+            {
+                CaptureLivePoint(cube);
+            }
         }
 
         private void OnCubeButton(Cube cube)
         {
+            if (cube != observationCube)
+            {
+                return;
+            }
+
             var wasPressed = cubeButtonPressed;
             cubeButtonPressed = cube.isPressed;
             if (cubeButtonPressed && !wasPressed)
@@ -550,7 +659,7 @@ namespace toio.Experiments.ToioTacticalField
 
             isTransporterMoving = false;
             transporterGoalReached = true;
-            observationMessage = "GOAL REACHED. Phase 4 friendly recognition kept the Transporter route working.";
+            observationMessage = "GOAL REACHED. Phase 5 scout discovery kept the Transporter route working.";
         }
 
         private void EnsureWorld()
@@ -599,13 +708,11 @@ namespace toio.Experiments.ToioTacticalField
         private Vector2[] GenerateTransporterRoutePoints()
         {
             var route = new List<Vector2>();
-            var centerColumn = TacticalFieldColumns / 2;
-            for (var row = 0; row < TacticalFieldRows; row++)
+            for (var y = MaxGridY; y >= MinGridY; y--)
             {
-                var index = row * TacticalFieldColumns + centerColumn;
-                if (index >= 0 && index < tacticalCellPoints.Length)
+                if (TryGetCellPoint(new Vector2Int(0, y), out var point))
                 {
-                    route.Add(tacticalCellPoints[index]);
+                    route.Add(point);
                 }
             }
 
@@ -671,22 +778,27 @@ namespace toio.Experiments.ToioTacticalField
             for (var index = 0; index < points.Length; index++)
             {
                 var row = index / TacticalFieldColumns;
+                var column = index % TacticalFieldColumns;
+                var logical = IndexToLogical(column, row);
                 var cell = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                cell.name = $"TacticalCell_{index % TacticalFieldColumns}_{row}";
+                cell.name = $"TacticalCell_{logical.x}_{logical.y}";
                 cell.transform.SetParent(tacticalFieldRoot);
                 cell.transform.position = MatToWorld(points[index], tacticalCellHeight);
                 cell.transform.rotation = rotation;
                 cell.transform.localScale = new Vector3(worldCellSize, tacticalCellHeight, worldCellSize);
-                var color = row == 0 ? GridStartColor : row == TacticalFieldRows - 1 ? GridGoalColor : GridColor;
+                var color = ResolveCellColor(logical, row);
                 cell.GetComponent<Renderer>().material = CreateMaterial($"MAT_{cell.name}", color);
                 tacticalFieldCells.Add(cell);
             }
+
+            RenderScoutDiscoveryMarkers(rotation, worldCellSize);
         }
 
         private void ClearTacticalField()
         {
             DestroyTacticalFieldCells();
             tacticalCellPoints = Array.Empty<Vector2>();
+            ResetScoutDiscovery();
             ResetTransporterRoute();
             tacticalFieldMessage = "Field: awaiting anchor conversion.";
         }
@@ -702,6 +814,205 @@ namespace toio.Experiments.ToioTacticalField
             }
 
             tacticalFieldCells.Clear();
+            DestroyScoutDiscoveryMarkers();
+        }
+
+        private void DestroyScoutDiscoveryMarkers()
+        {
+            foreach (var marker in scoutDiscoveryMarkers)
+            {
+                if (marker != null)
+                {
+                    Destroy(marker);
+                }
+            }
+
+            scoutDiscoveryMarkers.Clear();
+        }
+
+        private void GeneratePhase5MapFeatures()
+        {
+            ResetScoutDiscovery();
+            var candidates = new List<Vector2Int>();
+            for (var y = MaxGridY - 1; y > MinGridY; y--)
+            {
+                for (var x = MinGridX; x <= MaxGridX; x++)
+                {
+                    var logical = new Vector2Int(x, y);
+                    if (x == 0 || logical == scoutGridPosition || logical == enemyGridPosition)
+                    {
+                        continue;
+                    }
+
+                    candidates.Add(logical);
+                }
+            }
+
+            var seed = phase5RandomSeed +
+                Mathf.RoundToInt(startAnchor.x + startAnchor.y + goalAnchor.x + goalAnchor.y);
+            var random = new System.Random(seed);
+            while (obstacleCells.Count < phase5ObstacleCount && candidates.Count > 0)
+            {
+                var index = random.Next(candidates.Count);
+                obstacleCells.Add(candidates[index]);
+                candidates.RemoveAt(index);
+            }
+
+            scoutMessage = FormatScoutMessage($"Map generated: {obstacleCells.Count} hidden obstacles");
+        }
+
+        private void ResetScoutDiscovery()
+        {
+            obstacleCells.Clear();
+            detectedObstacleCells.Clear();
+            scoutGridPosition = new Vector2Int(-1, MaxGridY);
+            enemyGridPosition = new Vector2Int(0, MinGridY);
+            enemyDetected = false;
+            scoutMessage = "Scout: field conversion required before discovery.";
+        }
+
+        private void MoveScoutBy(Vector2Int delta, string directionName)
+        {
+            if (tacticalCellPoints.Length == 0)
+            {
+                scoutMessage = "Scout: Convert Tactical Field before moving.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            if (scoutCube == null || !scoutCube.isConnected)
+            {
+                scoutMessage = "Scout: connect the friendly team first.";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            var next = scoutGridPosition + delta;
+            if (!IsInsideGrid(next))
+            {
+                scoutMessage = FormatScoutMessage($"blocked at field edge ({directionName})");
+                RefreshRuntimeUi();
+                return;
+            }
+
+            if (!TryGetCellPoint(next, out var target))
+            {
+                scoutMessage = FormatScoutMessage($"target cell missing ({directionName})");
+                RefreshRuntimeUi();
+                return;
+            }
+
+            var previousPoint = TryGetCellPoint(scoutGridPosition, out var current)
+                ? current
+                : target;
+            scoutCube.TargetMove(
+                Mathf.RoundToInt(target.x),
+                Mathf.RoundToInt(target.y),
+                CalculateMatAngle(previousPoint, target),
+                configID: 90,
+                targetMoveType: Cube.TargetMoveType.RoundBeforeMove,
+                maxSpd: scoutMoveMaxSpeed
+            );
+            scoutGridPosition = next;
+            scoutMessage = FormatScoutMessage($"move {directionName}");
+            RenderTacticalField(tacticalCellPoints);
+            RefreshRuntimeUi();
+            SetFieldView(true);
+        }
+
+        private bool IsWithinScoutSearch(Vector2Int target)
+        {
+            var distance = Mathf.Abs(target.x - scoutGridPosition.x) + Mathf.Abs(target.y - scoutGridPosition.y);
+            return distance <= scoutSearchRadiusCells;
+        }
+
+        private bool TryGetCellPoint(Vector2Int logical, out Vector2 point)
+        {
+            var index = LogicalToIndex(logical);
+            if (index >= 0 && index < tacticalCellPoints.Length)
+            {
+                point = tacticalCellPoints[index];
+                return true;
+            }
+
+            point = Vector2.zero;
+            return false;
+        }
+
+        private static int LogicalToIndex(Vector2Int logical)
+        {
+            if (!IsInsideGrid(logical))
+            {
+                return -1;
+            }
+
+            var column = logical.x - MinGridX;
+            var row = MaxGridY - logical.y;
+            return row * TacticalFieldColumns + column;
+        }
+
+        private static Vector2Int IndexToLogical(int column, int row)
+        {
+            return new Vector2Int(MinGridX + column, MaxGridY - row);
+        }
+
+        private static bool IsInsideGrid(Vector2Int logical)
+        {
+            return logical.x >= MinGridX && logical.x <= MaxGridX && logical.y >= MinGridY && logical.y <= MaxGridY;
+        }
+
+        private Color ResolveCellColor(Vector2Int logical, int row)
+        {
+            if (detectedObstacleCells.Contains(logical))
+            {
+                return ObstacleColor;
+            }
+
+            if (enemyDetected && logical == enemyGridPosition)
+            {
+                return EnemyColor;
+            }
+
+            return row == 0 ? GridStartColor : row == TacticalFieldRows - 1 ? GridGoalColor : GridColor;
+        }
+
+        private void RenderScoutDiscoveryMarkers(Quaternion rotation, float worldCellSize)
+        {
+            DestroyScoutDiscoveryMarkers();
+            if (tacticalCellPoints.Length == 0 || !TryGetCellPoint(scoutGridPosition, out var scoutPoint))
+            {
+                return;
+            }
+
+            var scoutMarker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            scoutMarker.name = "ScoutLogicalPosition";
+            scoutMarker.transform.SetParent(tacticalFieldRoot);
+            scoutMarker.transform.position = MatToWorld(scoutPoint, tacticalCellHeight + 0.2f);
+            scoutMarker.transform.rotation = rotation;
+            scoutMarker.transform.localScale = new Vector3(worldCellSize * 0.46f, 0.22f, worldCellSize * 0.46f);
+            scoutMarker.GetComponent<Renderer>().material = CreateMaterial("MAT_ScoutLogicalPosition", ScoutColor);
+            scoutDiscoveryMarkers.Add(scoutMarker);
+
+            for (var y = MaxGridY; y >= MinGridY; y--)
+            {
+                for (var x = MinGridX; x <= MaxGridX; x++)
+                {
+                    var logical = new Vector2Int(x, y);
+                    if (logical == scoutGridPosition || !IsWithinScoutSearch(logical) || !TryGetCellPoint(logical, out var point))
+                    {
+                        continue;
+                    }
+
+                    var scanMarker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    scanMarker.name = $"ScoutScanRadius_{logical.x}_{logical.y}";
+                    scanMarker.transform.SetParent(tacticalFieldRoot);
+                    scanMarker.transform.position = MatToWorld(point, tacticalCellHeight + 0.05f);
+                    scanMarker.transform.rotation = rotation;
+                    scanMarker.transform.localScale = new Vector3(worldCellSize * 0.28f, 0.05f, worldCellSize * 0.28f);
+                    scanMarker.GetComponent<Renderer>().material = CreateMaterial($"MAT_{scanMarker.name}", ScanColor);
+                    scoutDiscoveryMarkers.Add(scanMarker);
+                }
+            }
         }
 
         private void RefreshVisualization()
@@ -761,15 +1072,17 @@ namespace toio.Experiments.ToioTacticalField
             StretchFull(controlView.GetComponent<RectTransform>());
             var header = CreatePanel("Header", controlView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(900f, 104f), PanelColor);
             CreateText("Title", header.transform, "toio Tactical Field | Ordia Deskfront", 31, FontStyle.Bold, TextAnchor.MiddleCenter, TextColor, new Vector2(-72f, 15f), new Vector2(676f, 40f));
-            CreateText("Phase", header.transform, $"{VersionLabel} | Friendly 3-Piece Recognition", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(-72f, -23f), new Vector2(676f, 26f));
+            CreateText("Phase", header.transform, $"{VersionLabel} | Scout Discovery Effect", 18, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(-72f, -23f), new Vector2(676f, 26f));
             CreateButton("FieldView", header.transform, "Open Field View", new Vector2(260f, 0f), new Vector2(150f, 42f), GoalColor, OnShowFieldView);
 
             var status = CreatePanel("Status", controlView.transform, new Vector2(0f, 1f), new Vector2(24f, -184f), new Vector2(450f, 382f), CardColor, true);
-            connectionStatusLabel = CreateText("Connection", status.transform, string.Empty, 16, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -18f), new Vector2(410f, 58f), true);
-            roleStatusLabel = CreateText("Roles", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -78f), new Vector2(410f, 62f), true);
-            observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 17, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -148f), new Vector2(410f, 62f), true);
-            anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 15, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -222f), new Vector2(410f, 86f), true);
-            victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 24, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -318f), new Vector2(410f, 40f), true);
+            connectionStatusLabel = CreateText("Connection", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -16f), new Vector2(410f, 48f), true);
+            roleStatusLabel = CreateText("Roles", status.transform, string.Empty, 14, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -66f), new Vector2(410f, 54f), true);
+            setupGuideLabel = CreateText("SetupGuide", status.transform, string.Empty, 14, FontStyle.Bold, TextAnchor.UpperLeft, TextColor, new Vector2(20f, -124f), new Vector2(410f, 48f), true);
+            observationStatusLabel = CreateText("Observation", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, StartColor, new Vector2(20f, -176f), new Vector2(410f, 48f), true);
+            scoutStatusLabel = CreateText("Scout", status.transform, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, ScoutColor, new Vector2(20f, -230f), new Vector2(410f, 50f), true);
+            anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 13, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -286f), new Vector2(410f, 58f), true);
+            victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 22, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -344f), new Vector2(410f, 30f), true);
 
             var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 382f), CardColor, false, true);
             CreateButton("Connect", actions.transform, "Connect Friendly Team", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
@@ -778,6 +1091,14 @@ namespace toio.Experiments.ToioTacticalField
             CreateButton("Run", actions.transform, "Run Grid Route", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
             CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
             CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -282f), new Vector2(276f, 38f), MutedTextColor, OnBackToLauncher, true);
+
+            var scoutPanel = CreatePanel("ScoutControls", controlView.transform, new Vector2(0.5f, 0f), new Vector2(0f, 94f), new Vector2(720f, 150f), CardColor);
+            CreateText("ScoutTitle", scoutPanel.transform, "Scout Controls | 1マス移動 / 半径2マスサーチ", 16, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 48f), new Vector2(650f, 28f));
+            CreateButton("ScoutForward", scoutPanel.transform, "Forward", new Vector2(0f, 14f), new Vector2(132f, 34f), ScoutColor, OnScoutForward);
+            CreateButton("ScoutLeft", scoutPanel.transform, "Left", new Vector2(-145f, -28f), new Vector2(132f, 34f), ScoutColor, OnScoutLeft);
+            CreateButton("ScoutScan", scoutPanel.transform, "Scan", new Vector2(0f, -28f), new Vector2(132f, 34f), GoalColor, OnScoutScan);
+            CreateButton("ScoutRight", scoutPanel.transform, "Right", new Vector2(145f, -28f), new Vector2(132f, 34f), ScoutColor, OnScoutRight);
+            CreateButton("ScoutBack", scoutPanel.transform, "Back", new Vector2(0f, -70f), new Vector2(132f, 34f), ScoutColor, OnScoutBack);
 
             fieldView = CreateUiObject("FieldView", root.transform);
             StretchFull(fieldView.GetComponent<RectTransform>());
@@ -796,17 +1117,19 @@ namespace toio.Experiments.ToioTacticalField
 
             connectionStatusLabel.text = connectionMessage;
             roleStatusLabel.text = roleMessage;
+            setupGuideLabel.text = setupGuideMessage;
             observationStatusLabel.text = observationMessage;
+            scoutStatusLabel.text = scoutMessage;
             anchorStatusLabel.text =
                 $"Start: {(hasStartAnchor ? FormatPoint(startAnchor, startSource) : "--")}\n" +
                 $"Goal:  {(hasGoalAnchor ? FormatPoint(goalAnchor, goalSource) : "--")}\n" +
-                $"Axis:  {(hasStartAnchor && hasGoalAnchor ? $"{Vector2.Distance(startAnchor, goalAnchor):F1} mat dots" : "--")}\n" +
-                $"Route: {FormatRouteStatus()}\n" +
+                $"Grid:  x {MinGridX}..{MaxGridX} / y {MaxGridY}..{MinGridY}\n" +
+                $"Route: {FormatRouteStatus()} | " +
                 tacticalFieldMessage;
             victoryStatusLabel.text = transporterGoalReached ? "GOAL REACHED" : string.Empty;
             if (fieldViewStatusLabel != null)
             {
-                fieldViewStatusLabel.text = tacticalFieldMessage;
+                fieldViewStatusLabel.text = $"{tacticalFieldMessage} | {scoutMessage}";
             }
         }
 
@@ -849,6 +1172,11 @@ namespace toio.Experiments.ToioTacticalField
             return
                 $"Transporter: {FormatRoleCube(observationCube)}\n" +
                 $"Scout: {FormatRoleCube(scoutCube)} | Builder: {FormatRoleCube(builderCube)}";
+        }
+
+        private string FormatScoutMessage(string prefix)
+        {
+            return $"{prefix} | Scout ({scoutGridPosition.x},{scoutGridPosition.y}) | detected obstacles {detectedObstacleCells.Count}/{obstacleCells.Count}";
         }
 
         private static string FormatRoleCube(Cube cube)
@@ -963,13 +1291,25 @@ namespace toio.Experiments.ToioTacticalField
             rect.anchoredPosition = position;
             rect.sizeDelta = dimensions;
             var text = target.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.font = ResolveUiFont();
             text.text = value;
             text.fontSize = size;
             text.fontStyle = style;
             text.alignment = alignment;
             text.color = color;
             return text;
+        }
+
+        private static Font ResolveUiFont()
+        {
+            if (cachedUiFont != null)
+            {
+                return cachedUiFont;
+            }
+
+            cachedUiFont = Resources.Load<Font>(JapaneseFontResourcePath) ??
+                Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            return cachedUiFont;
         }
 
         private static GameObject CreateUiObject(string name, Transform parent)
