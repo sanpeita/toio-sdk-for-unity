@@ -15,6 +15,8 @@ The repeated victory promise remains:
 - Device: three player-side toio Core Cubes
 - Current boundary: Phase 5 `Scout Discovery Effect`
 - Mat: space-themed toio playmat, with logical field coordinates `x=-3..3` and `y=2..-2`
+- Player start line: `x=-3`, `y=2..-2`
+- Enemy standby / player goal line: `x=2`, `y=2..-2`
 
 ## Implemented Features
 
@@ -22,11 +24,12 @@ The repeated victory promise remains:
 - Assigns the connected cubes, ordered by BLE address, to Transporter, Scout, and Builder.
 - Runs a short left-right turn appeal after each role connection so the physical cube-to-role pairing is visible without sound.
 - Shows a Japanese setup guide using the bundled Noto Sans JP font asset.
-- Uses the Transporter cube button twice: first press records the start anchor, second press records the goal anchor.
-- Converts the observed axis into a `7 x 5` logical field matching `x=-3..3` and `y=2..-2`.
+- Keeps `Capture Current Anchor` out of the main Phase 5 flow; fixed-map setup replaces the old observation-first flow.
+- Uses `Set Fixed Lines` as a manual confirmation of the fixed player line and goal/enemy line.
+- `Convert Tactical Field` automatically applies the fixed lines and creates a `7 x 5` logical field matching `x=-3..3` and `y=2..-2`.
 - Renders start-side and goal-side colors so the player-side and fixed far side are easy to read.
 - Generates hidden random obstacle cells when `Convert Tactical Field` is pressed.
-- Places Scout at logical `(-1,2)`, with Transporter at `(0,2)` and Builder at `(1,2)` as the intended start-line setup.
+- Places the player-side roles on the `x=-3` start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 - Moves Scout one cell at a time with separate Forward / Back / Left / Right controls.
 - Scans Scout's Manhattan radius of two cells and reveals detected obstacle cells on the Unity field.
 - Reveals a placeholder enemy marker if Scout's scan radius reaches the fixed enemy-side marker.
@@ -37,25 +40,25 @@ The repeated victory promise remains:
 
 1. Open `Assets/Experiments/ToioTacticalField/ToioTacticalField.unity` directly.
 2. Play the scene.
-3. Press `Connect Friendly Team`.
-4. Place the three player-side cubes on the start line: Scout / Transporter / Builder, with Transporter in the center.
-5. Put the Transporter cube at the start anchor and press its physical button.
-6. Move the same Transporter cube to the goal anchor and press its physical button again.
-7. Press `Convert Tactical Field`.
-8. Check that the field uses logical coordinates `x=-3..3` and `y=2..-2`.
+3. Power on the three player-side Core Cubes.
+4. Press `Connect Friendly Team`.
+5. Press `Convert Tactical Field`.
+6. Check that Unity shows the fixed logical field: `x=-3..3`, `y=2..-2`.
+7. Place Scout / Transporter / Builder on the player start line `x=-3`.
+8. Recommended placement: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 9. Use Scout controls to move one cell at a time.
 10. Press `Scan` after each move and check that detected obstacle cells appear on the Unity field.
 11. Use the revealed obstacles as the Saturday short's stage overview.
-12. Return the Transporter cube to the start anchor.
+12. Return the Transporter cube to `(-3,0)`.
 13. Press `Run Grid Route`.
-14. Confirm route progress advances and Unity shows `GOAL REACHED`.
+14. Confirm route progress advances toward the `x=2` goal line and Unity shows `GOAL REACHED`.
 
-If BLE or mat reading is unstable during setup, use `Capture Current Anchor` to verify the screen flow with fallback coordinates.
+`Set Fixed Lines` is optional in normal use. It is there to make the fixed-map assumption visible on screen before conversion.
 
 ## Verification Status
 
 - Confirmed by static implementation review: Phase 5 UI entry points, Scout movement controls, scan radius logic, hidden obstacle generation, and detected obstacle rendering.
-- Confirmed by static implementation review: the Transporter route now uses logical center cells `(0,2)` through `(0,-2)` before the observed goal anchor.
+- Confirmed by static implementation review: the Transporter route now uses logical cells from `(-3,0)` to `(2,0)`.
 - Confirmed by `dotnet restore` + `dotnet build Assembly-CSharp.csproj`: C# build succeeds with no `ToioTacticalField` errors.
 - Needs Unity Editor asset import / Play Mode check after the bundled `Resources/Fonts/NotoSansJP-VF.ttf` is imported.
 - Needs Play Mode check: fallback anchors, field conversion, Scout movement, scan reveal, and Transporter `GOAL REACHED`.

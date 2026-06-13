@@ -23,6 +23,8 @@ namespace toio.Experiments.ToioTacticalField
         private const int MaxGridX = 3;
         private const int MinGridY = -2;
         private const int MaxGridY = 2;
+        private const int PlayerStartLineX = -3;
+        private const int EnemyGoalLineX = 2;
         private const string JapaneseFontResourcePath = "Fonts/NotoSansJP-VF";
 
         private static readonly Color BackgroundColor = new Color(0.055f, 0.075f, 0.07f, 1f);
@@ -58,6 +60,8 @@ namespace toio.Experiments.ToioTacticalField
         [Header("Tactical Field Convert")]
         [SerializeField] private float tacticalCellHeight = 0.12f;
         [SerializeField] private float tacticalCellFillRatio = 0.88f;
+        [SerializeField] private Vector2 fixedPlayerLineCenter = new Vector2(125f, 250f);
+        [SerializeField] private Vector2 fixedEnemyGoalLineCenter = new Vector2(375f, 250f);
 
         [Header("Straight Transporter Victory")]
         [SerializeField] private float transporterStartToleranceMatDots = 28f;
@@ -95,10 +99,10 @@ namespace toio.Experiments.ToioTacticalField
         private string startSource = "--";
         private string goalSource = "--";
         private string connectionMessage = "Not connected. Press Connect Friendly Team.";
-        private string observationMessage = "Awaiting start anchor observation.";
-        private string tacticalFieldMessage = "Field: awaiting anchor conversion.";
+        private string observationMessage = "Step 1: power on three Core Cubes, then connect the friendly team.";
+        private string tacticalFieldMessage = "Field: fixed map ready. Press Convert Tactical Field.";
         private string roleMessage = "Roles: Transporter / Scout / Builder awaiting connection.";
-        private string setupGuideMessage = "設置: Scout / Transporter / Builder をスタートラインに並べる";
+        private string setupGuideMessage = "Setup: player start line x=-3. Goal/enemy standby line x=2.";
         private string scoutMessage = "Scout: field conversion required before discovery.";
 
         private Text connectionStatusLabel;
@@ -193,15 +197,15 @@ namespace toio.Experiments.ToioTacticalField
                 await scoutCube.ConfigIDNotification(idNotificationIntervalMs, Cube.IDNotificationType.Balanced);
 
                 RefreshLivePoint();
-                connectionMessage = "Friendly team connected. Place Scout / Transporter / Builder on the start line.";
+                connectionMessage = "Friendly team connected. Next: press Convert Tactical Field.";
                 roleMessage = FormatRoleMessage();
-                setupGuideMessage = "設置: Scout(-1,2) / Transporter(0,2) / Builder(1,2)。奥側の敵ラインは固定。";
+                setupGuideMessage = "After conversion, place Scout(-3,1), Transporter(-3,0), Builder(-3,-1).";
                 RefreshRuntimeUi();
                 await UniTask.Delay(roleAppealPauseMs);
                 await RunRoleAppeal("Transporter", observationCube);
                 await RunRoleAppeal("Scout", scoutCube);
                 await RunRoleAppeal("Builder", builderCube);
-                observationMessage = "Move the Transporter cube to the start anchor, then press its button.";
+                observationMessage = "Step 2: press Convert Tactical Field. Capture anchors are no longer required.";
             }
             catch (Exception ex)
             {
@@ -232,19 +236,23 @@ namespace toio.Experiments.ToioTacticalField
             ClearTacticalField();
             startSource = "--";
             goalSource = "--";
-            observationMessage = "Awaiting start anchor observation.";
+            observationMessage = "Fixed field cleared. Press Convert Tactical Field to rebuild it.";
+            RefreshRuntimeUi();
+            RefreshVisualization();
+        }
+
+        public void OnUseFixedFieldLines()
+        {
+            ApplyFixedFieldLines();
+            tacticalFieldMessage = $"Field lines fixed | player x={PlayerStartLineX}, goal/enemy x={EnemyGoalLineX}";
+            observationMessage = "Fixed lines are ready. Press Convert Tactical Field.";
             RefreshRuntimeUi();
             RefreshVisualization();
         }
 
         public void OnConvertTacticalField()
         {
-            if (!hasStartAnchor || !hasGoalAnchor)
-            {
-                tacticalFieldMessage = "Field: capture start and goal anchors before conversion.";
-                RefreshRuntimeUi();
-                return;
-            }
+            ApplyFixedFieldLines();
 
             var axis = goalAnchor - startAnchor;
             if (axis.sqrMagnitude <= Mathf.Epsilon)
@@ -258,8 +266,8 @@ namespace toio.Experiments.ToioTacticalField
             GeneratePhase5MapFeatures();
             RenderTacticalField(tacticalCellPoints);
             ResetTransporterRoute();
-            tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | x:{MinGridX}..{MaxGridX} / y:{MaxGridY}..{MinGridY}";
-            observationMessage = "Observed axis converted into the Ordia tactical field. Scout can now search.";
+            tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | player x={PlayerStartLineX}, goal/enemy x={EnemyGoalLineX}";
+            observationMessage = "Step 3: place Scout / Transporter / Builder on the player start line.";
             scoutMessage = FormatScoutMessage("Scout ready");
             RefreshRuntimeUi();
             SetFieldView(true);
@@ -275,7 +283,7 @@ namespace toio.Experiments.ToioTacticalField
 
             if (!hasStartAnchor || !hasGoalAnchor)
             {
-                observationMessage = "Capture the start and goal anchors before running the Transporter.";
+                observationMessage = "Convert the fixed tactical field before running the Transporter.";
                 return;
             }
 
@@ -287,14 +295,20 @@ namespace toio.Experiments.ToioTacticalField
 
             if (!CaptureLivePoint(observationCube))
             {
-                observationMessage = "No readable mat position. Place the cube at the observed start anchor.";
+                observationMessage = "No readable mat position. Place the Transporter on the player start line.";
                 return;
             }
 
-            var startDistance = Vector2.Distance(livePoint, startAnchor);
+            if (!TryGetCellPoint(new Vector2Int(PlayerStartLineX, 0), out var transporterStartPoint))
+            {
+                observationMessage = "Fixed Transporter start cell is missing. Convert the tactical field again.";
+                return;
+            }
+
+            var startDistance = Vector2.Distance(livePoint, transporterStartPoint);
             if (startDistance > transporterStartToleranceMatDots)
             {
-                observationMessage = $"Return the same cube to the start anchor before running. Distance: {startDistance:F1} mat dots.";
+                observationMessage = $"Return the Transporter to (-3,0) before running. Distance: {startDistance:F1} mat dots.";
                 return;
             }
 
@@ -686,19 +700,20 @@ namespace toio.Experiments.ToioTacticalField
         private Vector2[] GenerateTacticalCellPoints(Vector2 start, Vector2 goal)
         {
             var forward = (goal - start).normalized;
-            var right = new Vector2(-forward.y, forward.x);
-            var cellSize = Vector2.Distance(start, goal) / TacticalFieldRows;
+            var up = new Vector2(-forward.y, forward.x);
+            var cellSize = Vector2.Distance(start, goal) / (EnemyGoalLineX - PlayerStartLineX);
             var points = new Vector2[TacticalFieldColumns * TacticalFieldRows];
             var index = 0;
             for (var row = 0; row < TacticalFieldRows; row++)
             {
+                var logicalY = MaxGridY - row;
                 for (var column = 0; column < TacticalFieldColumns; column++)
                 {
-                    var centeredColumn = column - (TacticalFieldColumns - 1) * 0.5f;
+                    var logicalX = MinGridX + column;
                     points[index++] =
                         start +
-                        forward * ((row + 0.5f) * cellSize) +
-                        right * (centeredColumn * cellSize);
+                        forward * ((logicalX - PlayerStartLineX) * cellSize) +
+                        up * (logicalY * cellSize);
                 }
             }
 
@@ -708,15 +723,14 @@ namespace toio.Experiments.ToioTacticalField
         private Vector2[] GenerateTransporterRoutePoints()
         {
             var route = new List<Vector2>();
-            for (var y = MaxGridY; y >= MinGridY; y--)
+            for (var x = PlayerStartLineX; x <= EnemyGoalLineX; x++)
             {
-                if (TryGetCellPoint(new Vector2Int(0, y), out var point))
+                if (TryGetCellPoint(new Vector2Int(x, 0), out var point))
                 {
                     route.Add(point);
                 }
             }
 
-            route.Add(goalAnchor);
             return route.ToArray();
         }
 
@@ -800,7 +814,18 @@ namespace toio.Experiments.ToioTacticalField
             tacticalCellPoints = Array.Empty<Vector2>();
             ResetScoutDiscovery();
             ResetTransporterRoute();
-            tacticalFieldMessage = "Field: awaiting anchor conversion.";
+            tacticalFieldMessage = "Field: fixed map ready. Press Convert Tactical Field.";
+        }
+
+        private void ApplyFixedFieldLines()
+        {
+            ClearTacticalField();
+            startAnchor = fixedPlayerLineCenter;
+            goalAnchor = fixedEnemyGoalLineCenter;
+            startSource = "fixed x=-3";
+            goalSource = "fixed x=2";
+            hasStartAnchor = true;
+            hasGoalAnchor = true;
         }
 
         private void DestroyTacticalFieldCells()
@@ -839,7 +864,7 @@ namespace toio.Experiments.ToioTacticalField
                 for (var x = MinGridX; x <= MaxGridX; x++)
                 {
                     var logical = new Vector2Int(x, y);
-                    if (x == 0 || logical == scoutGridPosition || logical == enemyGridPosition)
+                    if (x == PlayerStartLineX || x == EnemyGoalLineX || y == 0 || logical == scoutGridPosition || logical == enemyGridPosition)
                     {
                         continue;
                     }
@@ -865,8 +890,8 @@ namespace toio.Experiments.ToioTacticalField
         {
             obstacleCells.Clear();
             detectedObstacleCells.Clear();
-            scoutGridPosition = new Vector2Int(-1, MaxGridY);
-            enemyGridPosition = new Vector2Int(0, MinGridY);
+            scoutGridPosition = new Vector2Int(PlayerStartLineX, 1);
+            enemyGridPosition = new Vector2Int(EnemyGoalLineX, 0);
             enemyDetected = false;
             scoutMessage = "Scout: field conversion required before discovery.";
         }
@@ -973,7 +998,17 @@ namespace toio.Experiments.ToioTacticalField
                 return EnemyColor;
             }
 
-            return row == 0 ? GridStartColor : row == TacticalFieldRows - 1 ? GridGoalColor : GridColor;
+            if (logical.x == PlayerStartLineX)
+            {
+                return GridStartColor;
+            }
+
+            if (logical.x == EnemyGoalLineX)
+            {
+                return GridGoalColor;
+            }
+
+            return GridColor;
         }
 
         private void RenderScoutDiscoveryMarkers(Quaternion rotation, float worldCellSize)
@@ -1086,10 +1121,10 @@ namespace toio.Experiments.ToioTacticalField
 
             var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 548f), CardColor, false, true);
             CreateButton("Connect", actions.transform, "Connect Friendly Team", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
-            CreateButton("Capture", actions.transform, "Capture Current Anchor", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnCaptureCurrentAnchor, true);
+            CreateButton("FixedLines", actions.transform, "Set Fixed Lines", new Vector2(0f, -78f), new Vector2(276f, 44f), GoalColor, OnUseFixedFieldLines, true);
             CreateButton("Convert", actions.transform, "Convert Tactical Field", new Vector2(0f, -130f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
             CreateButton("Run", actions.transform, "Run Grid Route", new Vector2(0f, -182f), new Vector2(276f, 44f), StartColor, OnRunTransporter, true);
-            CreateButton("Clear", actions.transform, "Clear Anchors", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
+            CreateButton("Clear", actions.transform, "Reset Field", new Vector2(0f, -234f), new Vector2(276f, 40f), LineColor, OnClearAnchors, true);
             CreateButton("Back", actions.transform, "Back To Launcher", new Vector2(0f, -282f), new Vector2(276f, 38f), MutedTextColor, OnBackToLauncher, true);
 
             CreateText("ScoutTitle", actions.transform, "Scout Controls | move 1 / scan 2", 14, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, -332f), new Vector2(286f, 24f), true);
@@ -1120,8 +1155,8 @@ namespace toio.Experiments.ToioTacticalField
             observationStatusLabel.text = observationMessage;
             scoutStatusLabel.text = scoutMessage;
             anchorStatusLabel.text =
-                $"Start: {(hasStartAnchor ? FormatPoint(startAnchor, startSource) : "--")}\n" +
-                $"Goal:  {(hasGoalAnchor ? FormatPoint(goalAnchor, goalSource) : "--")}\n" +
+                $"Player line: {(hasStartAnchor ? FormatPoint(startAnchor, startSource) : "--")}\n" +
+                $"Goal/enemy:  {(hasGoalAnchor ? FormatPoint(goalAnchor, goalSource) : "--")}\n" +
                 $"Grid:  x {MinGridX}..{MaxGridX} / y {MaxGridY}..{MinGridY}\n" +
                 $"Route: {FormatRouteStatus()} | " +
                 tacticalFieldMessage;
