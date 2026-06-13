@@ -339,22 +339,22 @@ namespace toio.Experiments.ToioTacticalField
 
         public void OnScoutForward()
         {
-            MoveScoutBy(new Vector2Int(0, -1), "forward");
+            MoveScoutBy(new Vector2Int(1, 0), "forward");
         }
 
         public void OnScoutBack()
         {
-            MoveScoutBy(new Vector2Int(0, 1), "back");
+            MoveScoutBy(new Vector2Int(-1, 0), "back");
         }
 
         public void OnScoutLeft()
         {
-            MoveScoutBy(new Vector2Int(-1, 0), "left");
+            MoveScoutBy(new Vector2Int(0, 1), "left");
         }
 
         public void OnScoutRight()
         {
-            MoveScoutBy(new Vector2Int(1, 0), "right");
+            MoveScoutBy(new Vector2Int(0, -1), "right");
         }
 
         public void OnScoutScan()

@@ -31,6 +31,7 @@ The repeated victory promise remains:
 - Generates hidden random obstacle cells when `Convert Tactical Field` is pressed.
 - Places the player-side roles on the `x=-3` start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 - Moves Scout one cell at a time with separate Forward / Back / Left / Right controls.
+- Defines Scout `Forward` as `+X`, from the player start line toward the enemy / goal line. `Left` is `+Y`; `Right` is `-Y`.
 - Shows the same Scout controls in `FIELD VIEW` after `Convert Tactical Field`, so Scout can move and scan without returning to the control screen.
 - Scans Scout's Manhattan radius of two cells and reveals detected obstacle cells on the Unity field.
 - Reveals a placeholder enemy marker if Scout's scan radius reaches the fixed enemy-side marker.
