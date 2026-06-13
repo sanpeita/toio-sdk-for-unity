@@ -85,6 +85,7 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private int scoutSearchRadiusCells = 2;
         [SerializeField] private int scoutMoveMaxSpeed = 45;
         [SerializeField] private int startLineMoveMaxSpeed = 40;
+        [SerializeField] private int startLineMoveCommandSpacingMs = 450;
 
         private CubeManager cubeManager;
         private Cube observationCube;
@@ -663,12 +664,12 @@ namespace toio.Experiments.ToioTacticalField
                 return;
             }
 
-            observationMessage = "Auto start-line move: sending Scout / Transporter / Builder to x=-3.";
+            observationMessage = "Auto start-line move: sending Transporter / Scout / Builder to x=-3.";
             scoutMessage = FormatScoutMessage("Scout start-line move queued");
             RefreshRuntimeUi();
 
-            await MoveRoleToStartCell("Scout", scoutCube, ScoutStartCell, 71);
-            await MoveRoleToStartCell("Transporter", observationCube, TransporterStartCell, 72);
+            await MoveRoleToStartCell("Transporter", observationCube, TransporterStartCell, 71);
+            await MoveRoleToStartCell("Scout", scoutCube, ScoutStartCell, 72);
             await MoveRoleToStartCell("Builder", builderCube, BuilderStartCell, 73);
 
             if (!isSceneActive)
@@ -679,11 +680,10 @@ namespace toio.Experiments.ToioTacticalField
             scoutGridPosition = ScoutStartCell;
             RenderTacticalField(tacticalCellPoints);
             connectionMessage = "Friendly team connected. Start-line move sent.";
-            observationMessage = "Step 3: check the three cubes on x=-3, then use Scout controls.";
+            observationMessage = "Step 3: check the three cubes on x=-3, then press Open Field View when ready.";
             tacticalFieldMessage = $"TACTICAL FIELD CONVERTED | player x={PlayerStartLineX}, goal/enemy x={EnemyGoalLineX} | auto start sent";
             scoutMessage = FormatScoutMessage("Scout ready");
             RefreshRuntimeUi();
-            SetFieldView(true);
         }
 
         private async UniTask MoveRoleToStartCell(string roleName, Cube cube, Vector2Int logicalCell, int configId)
@@ -707,30 +707,39 @@ namespace toio.Experiments.ToioTacticalField
                 return;
             }
 
-            roleMessage = $"{roleName}: moving to start cell ({logicalCell.x},{logicalCell.y}).";
-            RefreshRuntimeUi();
-            var ready = await WaitUntilCubeControllable(cube);
-            if (!isSceneActive)
+            var moveSent = false;
+            for (var attempt = 1; attempt <= 2; attempt++)
             {
-                return;
+                roleMessage = $"{roleName}: moving to start cell ({logicalCell.x},{logicalCell.y}) [{attempt}/2].";
+                RefreshRuntimeUi();
+                var ready = await WaitUntilCubeControllable(cube);
+                if (!isSceneActive)
+                {
+                    return;
+                }
+
+                if (!ready)
+                {
+                    continue;
+                }
+
+                cube.TargetMove(
+                    Mathf.RoundToInt(target.x),
+                    Mathf.RoundToInt(target.y),
+                    CalculateMatAngle(target, goalAnchor),
+                    configID: configId,
+                    targetMoveType: Cube.TargetMoveType.RoundBeforeMove,
+                    maxSpd: startLineMoveMaxSpeed
+                );
+                moveSent = true;
+                await UniTask.Delay(startLineMoveCommandSpacingMs);
             }
 
-            if (!ready)
+            if (!moveSent)
             {
                 roleMessage = $"{roleName}: start-line move skipped because the cube was not ready for motor orders.";
                 RefreshRuntimeUi();
-                return;
             }
-
-            cube.TargetMove(
-                Mathf.RoundToInt(target.x),
-                Mathf.RoundToInt(target.y),
-                CalculateMatAngle(target, goalAnchor),
-                configID: configId,
-                targetMoveType: Cube.TargetMoveType.RoundBeforeMove,
-                maxSpd: startLineMoveMaxSpeed
-            );
-            await UniTask.Delay(roleAppealPauseMs);
         }
 
         private async UniTask<bool> WaitUntilCubeControllable(Cube cube)
