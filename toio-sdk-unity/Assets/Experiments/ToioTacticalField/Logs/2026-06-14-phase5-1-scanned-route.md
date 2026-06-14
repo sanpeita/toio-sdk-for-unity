@@ -31,9 +31,17 @@ The new rule direction is:
 - `dotnet build Assembly-CSharp.csproj -v:minimal` succeeded.
 - Final build result: 0 warnings, 0 errors.
 - Existing Unity Editor log showed `Tundra build success`, `Mono: successfully reloaded assembly`, and the `ToioTacticalField` scene loaded.
+- Device / Play result from Unotchi: Phase 5.1 behavior was good enough to satisfy today's target.
 
 ## Needs Visual / Device Check
 
 - Unity Editor Play Mode UI overlap check after the new right-side control panels. Codex could confirm the scene was open in Unity, but the Play-mode screenshot capture did not complete in this run.
 - Device check for Scout scan -> Transporter route -> `GOAL REACHED`.
 - Device check that rough-cell speed reduction is visually readable enough for Shorts.
+
+## Next Improvements From Device Run
+
+- Transporter route collision: during shortest-route movement, Transporter can collide with the friendly Builder and friendly Scout. Next pass should treat friendly Core Cubes as blocked cells during shortest-route calculation.
+- FIELD VIEW UI overlap: the Transporter / Builder panel and Scout control panel overlap the battlefield in the current screenshot. The Scout and Builder/Transporter control panels can likely be narrower, and should be moved farther away from the grid.
+- Critical map-size bug: the current field effectively behaves like `6 x 5`. The screenshot shows the goal column at `x=2`; the correct end line should be `x=3`.
+- Follow-up rule correction: update `EnemyGoalLineX` / goal-line handling from `x=2` to `x=3`, then regenerate route logic and UI text around that assumption.
