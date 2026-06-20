@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`ToioTacticalField` is the Ordia tabletop auto-tactics prototype scene. Phase 5.1 keeps the Phase 5 Scout discovery loop, then turns scan results into route rules: unknown cells are blocked, plain cells are normal, rough cells slow movement, and debris blocks movement.
+`ToioTacticalField` is the Ordia tabletop auto-tactics prototype scene. Phase 5.3 keeps the scanned terrain route loop, then adds Scout auto-scan movement and automatic Transporter launch when a safe scanned route opens.
 
 The repeated victory promise remains:
 
@@ -13,10 +13,10 @@ The repeated victory promise remains:
 - Scene: `Assets/Experiments/ToioTacticalField/ToioTacticalField.unity`
 - Launcher entry: `ToioLauncher -> Open TacticalField`
 - Device: three player-side toio Core Cubes
-- Current boundary: Phase 5.1 `Scanned Terrain Route Control`
+- Current boundary: Phase 5.3 `Scout Auto Scan / Transporter Auto Launch`
 - Mat: space-themed toio playmat, with logical field coordinates `x=-3..3` and `y=2..-2`
 - Player start line: `x=-3`, `y=2..-2`
-- Enemy standby / player goal line: `x=2`, `y=2..-2`
+- Enemy standby / player goal line: `x=3`, `y=2..-2`
 
 ## Implemented Features
 
@@ -31,7 +31,7 @@ The repeated victory promise remains:
 - Uses `Set Fixed Lines` as a manual confirmation of the fixed player line and goal/enemy line.
 - `Convert Tactical Field` remains available as a manual rebuild button, and applies the fixed lines to create a `7 x 5` logical field matching `x=-3..3` and `y=2..-2`.
 - Renders start-side and goal-side colors so the player-side and fixed far side are easy to read.
-- Generates terrain cells when `Convert Tactical Field` is pressed: unknown until scanned, then plain / rough / debris.
+- Generates terrain cells when `Convert Tactical Field` is pressed: unknown until scanned, then randomized plain / rough / debris.
 - Places the player-side roles on the `x=-3` start line: Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 - Moves Scout one cell at a time with separate Forward / Back / Left / Right controls.
 - Defines Scout `Forward` as `+X`, from the player start line toward the enemy / goal line. `Left` is `+Y`; `Right` is `-Y`.
@@ -43,8 +43,11 @@ The repeated victory promise remains:
 - Scans Scout's Manhattan radius of two cells and reveals terrain on the Unity field.
 - Reveals a placeholder enemy marker if Scout's scan radius reaches the fixed enemy-side marker.
 - Computes the Transporter route only through scanned passable cells.
+- Treats the friendly Scout / Builder occupied cells as blocked while the Transporter calculates its shortest route.
 - Stops Transporter movement when the scanned route is missing or cut by debris.
 - Adds Transporter start / stop controls.
+- Keeps Auto Transporter enabled by default. When scan results open a safe route, the Transporter starts automatically from `(-3,0)`.
+- Adds `Scout Auto`, which scans, moves through known passable cells, and follows the current waypoint plan: `(-3,1) -> (1,1) -> (1,-2) -> (-2,-2)`.
 - Keeps Builder gameplay unimplemented, with a debug self-appeal button only.
 
 ## Saturday Test Flow
@@ -62,11 +65,12 @@ The repeated victory promise remains:
 11. Press `scan` before moving Scout; unknown cells cannot be entered.
 12. Use the `FIELD VIEW` Scout controls to move one cell at a time through scanned passable cells.
 13. Check that scanned cells reveal as plain / rough / debris on the Unity field.
-14. Use Scout scan until a passable route reaches the `x=2` goal line.
+14. Use Scout scan until a passable route reaches the `x=3` goal line.
 15. Return the Transporter cube to `(-3,0)` if it was moved during Scout testing.
-16. Press `移動開始`.
+16. Either let Auto Transporter launch when the route opens, or press `移動開始` manually.
 17. Confirm route progress advances only through scanned passable cells and Unity shows `GOAL REACHED`.
 18. Press `移動中断` to stop the Transporter during a route test.
+19. Press `Scout自動` to test the automated scan route. Press it again to request stop.
 
 `Set Fixed Lines` and `Convert Tactical Field` are optional in normal use. They remain on screen as manual recovery / rebuild controls.
 
@@ -80,6 +84,9 @@ The repeated victory promise remains:
 - Confirmed by static implementation review: Phase 5 UI entry points, Scout movement controls, scan radius logic, hidden obstacle generation, and detected obstacle rendering.
 - Confirmed by static implementation review: Phase 5.1 route planning uses scanned passable cells instead of the fixed center line.
 - Confirmed by static implementation review: unknown cells and debris block movement; rough cells reduce move speed.
+- Confirmed by static implementation review: the fixed far-side goal line is `x=3`, and randomized terrain is generated on each tactical-field conversion by default.
+- Confirmed by static implementation review: Transporter pathfinding avoids the friendly Scout / Builder occupied cells.
+- Confirmed by static implementation review: Scout auto route and Auto Transporter entry points are available from both the control view and `FIELD VIEW`.
 - Confirmed by static implementation review: Transporter start / stop controls and Builder debug appeal are available in the JP-priority UI.
 - Confirmed by static implementation review: connected roles auto-convert the fixed field and queue start-line moves to Scout `(-3,1)`, Transporter `(-3,0)`, Builder `(-3,-1)`.
 - Confirmed by `dotnet build Assembly-CSharp.csproj -v:minimal`: C# build succeeds with no `ToioTacticalField` errors.
@@ -88,11 +95,14 @@ The repeated victory promise remains:
 - Needs Unity Editor asset import / Play Mode check after the bundled `Resources/Fonts/NotoSansJP-VF.ttf` is imported.
 - Needs Unity Editor Play Mode visual check for UI panel overlap after Phase 5.1 controls.
 - Needs future device check: Transporter `GOAL REACHED` after Scout-driven map reveal.
+- Needs future device check: Scout auto route timing and Auto Transporter launch during real Core Cube movement.
 
 ## Device Logs
 
 - `Logs/2026-06-13-phase5-device-test.md`
 - `Logs/2026-06-14-phase5-1-scanned-route.md`
+- `Logs/2026-06-20-phase5-2-foundation.md`
+- `Logs/2026-06-20-phase5-3-auto-scout-transporter.md`
 
 ## Saturday Short Hook
 

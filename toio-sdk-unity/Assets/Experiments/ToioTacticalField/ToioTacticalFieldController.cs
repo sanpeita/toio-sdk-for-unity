@@ -15,7 +15,7 @@ namespace toio.Experiments.ToioTacticalField
     {
         private const string LauncherSceneName = "ToioLauncher";
         private const string RootName = "ToioTacticalFieldRoot";
-        private const string VersionLabel = "Phase 5.1";
+        private const string VersionLabel = "Phase 5.3";
         private const int TacticalFieldColumns = 7;
         private const int TacticalFieldRows = 5;
         private const int FriendlyRoleCount = 3;
@@ -24,7 +24,7 @@ namespace toio.Experiments.ToioTacticalField
         private const int MinGridY = -2;
         private const int MaxGridY = 2;
         private const int PlayerStartLineX = -3;
-        private const int EnemyGoalLineX = 2;
+        private const int EnemyGoalLineX = 3;
         private const string JapaneseFontResourcePath = "Fonts/NotoSansJP-VF";
 
         private static readonly Vector2Int ScoutStartCell = new Vector2Int(PlayerStartLineX, 1);
@@ -93,12 +93,18 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private int phase5ObstacleCount = 5;
         [SerializeField] private int phase51RoughCellCount = 6;
         [SerializeField] private int phase5RandomSeed = 503;
+        [SerializeField] private bool randomizePhase5TerrainEachConvert = true;
         [SerializeField] private int scoutSearchRadiusCells = 2;
         [SerializeField] private int scoutMoveMaxSpeed = 45;
         [SerializeField] private float roughCellSpeedMultiplier = 0.5f;
         [SerializeField] private int startLineMoveMaxSpeed = 40;
         [SerializeField] private int startLineMoveCommandSpacingMs = 450;
         [SerializeField] private float startLineArrivalToleranceMatDots = 24f;
+
+        [Header("Phase 5.3 Automation")]
+        [SerializeField] private bool autoTransporterEnabled = true;
+        [SerializeField] private int scoutAutoMoveDelayMs = 1150;
+        [SerializeField] private int scoutAutoMaxSteps = 28;
 
         private CubeManager cubeManager;
         private Cube observationCube;
@@ -109,6 +115,7 @@ namespace toio.Experiments.ToioTacticalField
         private bool isSceneActive = true;
         private bool isConnecting;
         private bool isStartLineRetrying;
+        private bool isAutoScoutMoving;
         private bool cubeButtonPressed;
         private bool hasLivePoint;
         private bool hasStartAnchor;
@@ -158,6 +165,14 @@ namespace toio.Experiments.ToioTacticalField
         private Vector2Int enemyGridPosition = new Vector2Int(0, MinGridY);
         private int transporterRouteIndex = -1;
         private bool enemyDetected;
+
+        private static readonly Vector2Int[] ScoutAutoWaypoints =
+        {
+            ScoutStartCell,
+            new Vector2Int(1, 1),
+            new Vector2Int(1, -2),
+            new Vector2Int(-2, -2)
+        };
 
         private bool IsCubeConnected => observationCube != null && observationCube.isConnected;
         private bool IsFriendlyTeamConnected =>
@@ -392,49 +407,88 @@ namespace toio.Experiments.ToioTacticalField
 
         public void OnRunTransporter()
         {
+            TryStartTransporterRoute(true, "Transporter移動開始");
+        }
+
+        private bool TryStartTransporterRoute(bool reportErrors, string startMessagePrefix)
+        {
             if (!IsCubeConnected)
             {
-                observationMessage = "Transporter開始前に味方チームを接続してください。";
-                return;
+                if (reportErrors)
+                {
+                    observationMessage = "Transporter開始前に味方チームを接続してください。";
+                    RefreshRuntimeUi();
+                }
+
+                return false;
             }
 
             if (!hasStartAnchor || !hasGoalAnchor)
             {
-                observationMessage = "Transporter開始前に固定戦域をコンバートしてください。";
-                return;
+                if (reportErrors)
+                {
+                    observationMessage = "Transporter開始前に固定戦域をコンバートしてください。";
+                    RefreshRuntimeUi();
+                }
+
+                return false;
             }
 
             if (tacticalCellPoints.Length == 0)
             {
-                observationMessage = "Transporter開始前に戦域コンバートが必要です。";
-                return;
+                if (reportErrors)
+                {
+                    observationMessage = "Transporter開始前に戦域コンバートが必要です。";
+                    RefreshRuntimeUi();
+                }
+
+                return false;
             }
 
             if (!CaptureLivePoint(observationCube))
             {
-                observationMessage = "Transporter位置を読めません。開始ラインに置いてください。";
-                return;
+                if (reportErrors)
+                {
+                    observationMessage = "Transporter位置を読めません。開始ラインに置いてください。";
+                    RefreshRuntimeUi();
+                }
+
+                return false;
             }
 
             if (!TryGetCellPoint(new Vector2Int(PlayerStartLineX, 0), out var transporterStartPoint))
             {
-                observationMessage = "Transporter開始セルが見つかりません。戦域を再コンバートしてください。";
-                return;
+                if (reportErrors)
+                {
+                    observationMessage = "Transporter開始セルが見つかりません。戦域を再コンバートしてください。";
+                    RefreshRuntimeUi();
+                }
+
+                return false;
             }
 
             var startDistance = Vector2.Distance(livePoint, transporterStartPoint);
             if (startDistance > transporterStartToleranceMatDots)
             {
-                observationMessage = $"Transporterを (-3,0) に戻してください。距離: {startDistance:F1} mat dots。";
-                return;
+                if (reportErrors)
+                {
+                    observationMessage = $"Transporterを (-3,0) に戻してください。距離: {startDistance:F1} mat dots。";
+                    RefreshRuntimeUi();
+                }
+
+                return false;
             }
 
             if (!TryBuildScannedTransporterRoute(TransporterStartCell, out var routeCells, out var routePoints, out var routeError))
             {
-                observationMessage = routeError;
-                RefreshRuntimeUi();
-                SetFieldView(true);
-                return;
+                if (reportErrors)
+                {
+                    observationMessage = routeError;
+                    RefreshRuntimeUi();
+                    SetFieldView(true);
+                }
+
+                return false;
             }
 
             transporterRouteCells = routeCells;
@@ -442,10 +496,11 @@ namespace toio.Experiments.ToioTacticalField
             transporterRouteIndex = 0;
             isTransporterMoving = true;
             transporterGoalReached = false;
-            observationMessage = FormatRouteMessage("Transporter移動開始");
+            observationMessage = FormatRouteMessage(startMessagePrefix);
             CommandCurrentRouteTarget();
             SetFieldView(true);
             RefreshRuntimeUi();
+            return true;
         }
 
         public void OnStopTransporter()
@@ -459,6 +514,120 @@ namespace toio.Experiments.ToioTacticalField
             transporterRouteIndex = -1;
             observationMessage = "Transporter移動を中断しました。";
             RefreshRuntimeUi();
+        }
+
+        public void OnToggleAutoTransporter()
+        {
+            autoTransporterEnabled = !autoTransporterEnabled;
+            observationMessage = autoTransporterEnabled
+                ? "Auto搬送 ON: 道が開いたらTransporterを自動発進します。"
+                : "Auto搬送 OFF: Transporterは手動開始に戻します。";
+            if (autoTransporterEnabled)
+            {
+                TryAutoStartTransporter("Auto搬送開始");
+            }
+
+            RefreshRuntimeUi();
+        }
+
+        public async void OnAutoScoutRoute()
+        {
+            if (isAutoScoutMoving)
+            {
+                isAutoScoutMoving = false;
+                scoutMessage = FormatScoutMessage("Scout自動移動を停止します");
+                RefreshRuntimeUi();
+                return;
+            }
+
+            if (tacticalCellPoints.Length == 0)
+            {
+                scoutMessage = "Scout: 自動移動前に戦域コンバートしてください。";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            if (scoutCube == null || !scoutCube.isConnected)
+            {
+                scoutMessage = "Scout: 自動移動前に味方チームを接続してください。";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            isAutoScoutMoving = true;
+            scoutMessage = FormatScoutMessage("Scout自動スキャン開始");
+            RefreshRuntimeUi();
+            SetFieldView(true);
+
+            try
+            {
+                OnScoutScan();
+                if (isTransporterMoving)
+                {
+                    scoutMessage = FormatScoutMessage("Scout自動完了: Transporter発進");
+                    return;
+                }
+
+                await UniTask.Delay(scoutAutoMoveDelayMs);
+                var waypointIndex = ResolveScoutAutoWaypointIndex();
+                for (var step = 0; isSceneActive && isAutoScoutMoving && step < scoutAutoMaxSteps; step++)
+                {
+                    if (waypointIndex >= ScoutAutoWaypoints.Length)
+                    {
+                        scoutMessage = FormatScoutMessage("Scout自動スキャン完了");
+                        break;
+                    }
+
+                    var target = ScoutAutoWaypoints[waypointIndex];
+                    if (scoutGridPosition == target)
+                    {
+                        waypointIndex++;
+                        continue;
+                    }
+
+                    if (!TryBuildScoutRoute(scoutGridPosition, target, out var route) || route.Length < 2)
+                    {
+                        if (!TryFindScoutExplorationStep(out var explorationStep))
+                        {
+                            scoutMessage = FormatScoutMessage($"Scout自動待機: {target.x},{target.y} への既知ルートなし");
+                            break;
+                        }
+
+                        MoveScoutTo(explorationStep, "auto-scan");
+                    }
+                    else
+                    {
+                        MoveScoutTo(route[1], "auto-route");
+                    }
+
+                    await UniTask.Delay(scoutAutoMoveDelayMs);
+                    if (isTransporterMoving)
+                    {
+                        scoutMessage = FormatScoutMessage("Scout自動完了: Transporter発進");
+                        break;
+                    }
+
+                    if (!isSceneActive || !isAutoScoutMoving)
+                    {
+                        break;
+                    }
+
+                    OnScoutScan();
+                    TryAutoStartTransporter("Auto搬送開始");
+                    if (isTransporterMoving)
+                    {
+                        scoutMessage = FormatScoutMessage("Scout自動完了: Transporter発進");
+                        break;
+                    }
+
+                    await UniTask.Delay(scoutAutoMoveDelayMs);
+                }
+            }
+            finally
+            {
+                isAutoScoutMoving = false;
+                RefreshRuntimeUi();
+            }
         }
 
         public async void OnBuilderAppeal()
@@ -547,6 +716,7 @@ namespace toio.Experiments.ToioTacticalField
             var detectedDelta = detectedObstacleCells.Count - beforeObstacleCount;
             scoutMessage = FormatScoutMessage($"scan半径{scoutSearchRadiusCells}: +{scannedDelta}マス / デブリ+{detectedDelta}");
             tacticalFieldMessage = $"scan更新 | 解明 {scannedCells.Count}/{TacticalFieldColumns * TacticalFieldRows} | デブリ {detectedObstacleCells.Count}/{obstacleCells.Count}";
+            TryAutoStartTransporter("Auto搬送開始");
             RefreshRuntimeUi();
             SetFieldView(true);
         }
@@ -1148,7 +1318,7 @@ namespace toio.Experiments.ToioTacticalField
 
                 foreach (var next in EnumerateNeighborCells(current))
                 {
-                    if (visited.Contains(next) || !IsKnownPassableCell(next))
+                    if (visited.Contains(next) || !IsKnownPassableCell(next) || IsFriendlyOccupiedForTransporterRoute(next, start))
                     {
                         continue;
                     }
@@ -1193,6 +1363,122 @@ namespace toio.Experiments.ToioTacticalField
             routeCells = cells.ToArray();
             routePoints = points.ToArray();
             return routePoints.Length > 0;
+        }
+
+        private void TryAutoStartTransporter(string startMessagePrefix)
+        {
+            if (!autoTransporterEnabled || isTransporterMoving || transporterGoalReached)
+            {
+                return;
+            }
+
+            if (TryStartTransporterRoute(false, startMessagePrefix))
+            {
+                return;
+            }
+
+            if (tacticalCellPoints.Length > 0)
+            {
+                tacticalFieldMessage = $"Auto搬送待機 | goal x={EnemyGoalLineX} までscan済みルート待ち";
+            }
+        }
+
+        private int ResolveScoutAutoWaypointIndex()
+        {
+            for (var i = 0; i < ScoutAutoWaypoints.Length; i++)
+            {
+                if (scoutGridPosition == ScoutAutoWaypoints[i])
+                {
+                    return Mathf.Min(i + 1, ScoutAutoWaypoints.Length);
+                }
+            }
+
+            return 1;
+        }
+
+        private bool TryBuildScoutRoute(Vector2Int start, Vector2Int target, out Vector2Int[] route)
+        {
+            route = Array.Empty<Vector2Int>();
+            if (!IsKnownPassableCell(start) || !IsKnownPassableCell(target))
+            {
+                return false;
+            }
+
+            var queue = new Queue<Vector2Int>();
+            var previous = new Dictionary<Vector2Int, Vector2Int>();
+            var visited = new HashSet<Vector2Int> { start };
+            queue.Enqueue(start);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                if (current == target)
+                {
+                    var cells = new List<Vector2Int> { current };
+                    while (current != start)
+                    {
+                        current = previous[current];
+                        cells.Add(current);
+                    }
+
+                    cells.Reverse();
+                    route = cells.ToArray();
+                    return route.Length > 0;
+                }
+
+                foreach (var next in EnumerateNeighborCells(current))
+                {
+                    if (visited.Contains(next) || IsFriendlyReservedCell(next) || !IsKnownPassableCell(next))
+                    {
+                        continue;
+                    }
+
+                    visited.Add(next);
+                    previous[next] = current;
+                    queue.Enqueue(next);
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryFindScoutExplorationStep(out Vector2Int step)
+        {
+            step = scoutGridPosition;
+            var bestScore = -1;
+            foreach (var next in EnumerateNeighborCells(scoutGridPosition))
+            {
+                if (IsFriendlyReservedCell(next) || !IsKnownPassableCell(next))
+                {
+                    continue;
+                }
+
+                var score = CountUnknownCellsInScoutRange(next);
+                if (score <= bestScore)
+                {
+                    continue;
+                }
+
+                bestScore = score;
+                step = next;
+            }
+
+            return bestScore >= 0;
+        }
+
+        private int CountUnknownCellsInScoutRange(Vector2Int scoutPosition)
+        {
+            var count = 0;
+            foreach (var cell in EnumerateAllGridCells())
+            {
+                var distance = Mathf.Abs(cell.x - scoutPosition.x) + Mathf.Abs(cell.y - scoutPosition.y);
+                if (distance <= scoutSearchRadiusCells && !scannedCells.Contains(cell))
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private static IEnumerable<Vector2Int> EnumerateNeighborCells(Vector2Int current)
@@ -1301,7 +1587,7 @@ namespace toio.Experiments.ToioTacticalField
             startAnchor = GetFixedMapCellCenter(TransporterStartCell);
             goalAnchor = GetFixedMapCellCenter(new Vector2Int(EnemyGoalLineX, 0));
             startSource = "fixed x=-3";
-            goalSource = "fixed x=2";
+            goalSource = $"fixed x={EnemyGoalLineX}";
             hasStartAnchor = true;
             hasGoalAnchor = true;
         }
@@ -1356,8 +1642,9 @@ namespace toio.Experiments.ToioTacticalField
                 }
             }
 
-            var seed = phase5RandomSeed +
-                Mathf.RoundToInt(startAnchor.x + startAnchor.y + goalAnchor.x + goalAnchor.y);
+            var seed = randomizePhase5TerrainEachConvert
+                ? Guid.NewGuid().GetHashCode()
+                : phase5RandomSeed + Mathf.RoundToInt(startAnchor.x + startAnchor.y + goalAnchor.x + goalAnchor.y);
             var random = new System.Random(seed);
             while (obstacleCells.Count < phase5ObstacleCount && candidates.Count > 0)
             {
@@ -1442,6 +1729,18 @@ namespace toio.Experiments.ToioTacticalField
                 return;
             }
 
+            MoveScoutTo(next, directionName);
+        }
+
+        private void MoveScoutTo(Vector2Int next, string directionName)
+        {
+            if (!TryGetCellPoint(next, out var target))
+            {
+                scoutMessage = FormatScoutMessage($"移動不可: セル座標なし ({directionName})");
+                RefreshRuntimeUi();
+                return;
+            }
+
             var previousPoint = TryGetCellPoint(scoutGridPosition, out var current)
                 ? current
                 : target;
@@ -1458,6 +1757,7 @@ namespace toio.Experiments.ToioTacticalField
             RenderTacticalField(tacticalCellPoints);
             RefreshRuntimeUi();
             SetFieldView(true);
+            TryAutoStartTransporter("Auto搬送開始");
         }
 
         private bool IsFriendlyReservedCell(Vector2Int logical)
@@ -1468,6 +1768,21 @@ namespace toio.Experiments.ToioTacticalField
             }
 
             return logical == BuilderStartCell && builderCube != null && builderCube.isConnected;
+        }
+
+        private bool IsFriendlyOccupiedForTransporterRoute(Vector2Int logical, Vector2Int transporterStart)
+        {
+            if (logical == transporterStart)
+            {
+                return false;
+            }
+
+            if (scoutCube != null && scoutCube.isConnected && logical == scoutGridPosition)
+            {
+                return true;
+            }
+
+            return builderCube != null && builderCube.isConnected && logical == BuilderStartCell;
         }
 
         private bool IsWithinScoutSearch(Vector2Int target)
@@ -1725,7 +2040,7 @@ namespace toio.Experiments.ToioTacticalField
             anchorStatusLabel = CreateText("Anchors", status.transform, string.Empty, 13, FontStyle.Normal, TextAnchor.UpperLeft, MutedTextColor, new Vector2(20f, -286f), new Vector2(410f, 58f), true);
             victoryStatusLabel = CreateText("Victory", status.transform, string.Empty, 22, FontStyle.Bold, TextAnchor.UpperLeft, GoalColor, new Vector2(20f, -344f), new Vector2(410f, 30f), true);
 
-            var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 548f), CardColor, false, true);
+            var actions = CreatePanel("Actions", controlView.transform, new Vector2(1f, 1f), new Vector2(-24f, -184f), new Vector2(330f, 588f), CardColor, false, true);
             CreateButton("Connect", actions.transform, "味方3台を接続", new Vector2(0f, -26f), new Vector2(276f, 44f), StartColor, OnConnectObservationCube, true);
             CreateButton("FixedLines", actions.transform, "固定ライン確認", new Vector2(0f, -78f), new Vector2(276f, 40f), GoalColor, OnUseFixedFieldLines, true);
             CreateButton("Convert", actions.transform, "戦域コンバート", new Vector2(0f, -126f), new Vector2(276f, 44f), GridStartColor, OnConvertTacticalField, true);
@@ -1744,24 +2059,28 @@ namespace toio.Experiments.ToioTacticalField
             CreateButton("ScoutScan", actions.transform, "scan", new Vector2(72f, -432f), new Vector2(132f, 30f), GoalColor, OnScoutScan, true);
             CreateButton("ScoutRight", actions.transform, "右へ", new Vector2(-72f, -466f), new Vector2(132f, 30f), ScoutColor, OnScoutRight, true);
             CreateButton("ScoutBack", actions.transform, "後ろへ", new Vector2(72f, -466f), new Vector2(132f, 30f), ScoutColor, OnScoutBack, true);
+            CreateButton("ScoutAuto", actions.transform, "Scout自動", new Vector2(-72f, -506f), new Vector2(132f, 30f), ScoutColor, OnAutoScoutRoute, true);
+            CreateButton("AutoTransporter", actions.transform, "Auto搬送", new Vector2(72f, -506f), new Vector2(132f, 30f), StartColor, OnToggleAutoTransporter, true);
 
             fieldView = CreateUiObject("FieldView", root.transform);
             StretchFull(fieldView.GetComponent<RectTransform>());
             var fieldViewBar = CreatePanel("FieldViewBar", fieldView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(780f, 54f), CardColor);
             fieldViewStatusLabel = CreateText("FieldViewStatus", fieldViewBar.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.MiddleLeft, TextColor, new Vector2(-90f, 0f), new Vector2(560f, 38f));
             CreateButton("ReturnToControls", fieldViewBar.transform, "操作へ戻る", new Vector2(285f, 0f), new Vector2(180f, 36f), GoalColor, OnShowControlView);
-            var fieldTransportPanel = CreatePanel("FieldTransportControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 286f), new Vector2(326f, 122f), CardColor);
-            CreateText("FieldTransportTitle", fieldTransportPanel.transform, "Transporter", 15, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, 44f), new Vector2(286f, 24f));
-            CreateButton("FieldTransportRun", fieldTransportPanel.transform, "移動開始", new Vector2(-72f, 8f), new Vector2(132f, 32f), StartColor, OnRunTransporter);
-            CreateButton("FieldTransportStop", fieldTransportPanel.transform, "移動中断", new Vector2(72f, 8f), new Vector2(132f, 32f), ObstacleColor, OnStopTransporter);
-            CreateButton("FieldBuilderAppeal", fieldTransportPanel.transform, "Builderアピール", new Vector2(0f, -30f), new Vector2(276f, 30f), LineColor, OnBuilderAppeal);
-            var fieldScoutPanel = CreatePanel("FieldScoutControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 102f), new Vector2(326f, 164f), CardColor);
-            CreateText("FieldScoutTitle", fieldScoutPanel.transform, "Scout", 15, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 66f), new Vector2(286f, 24f));
-            CreateButton("FieldScoutForward", fieldScoutPanel.transform, "前へ", new Vector2(0f, 34f), new Vector2(132f, 30f), ScoutColor, OnScoutForward);
-            CreateButton("FieldScoutLeft", fieldScoutPanel.transform, "左へ", new Vector2(-72f, -2f), new Vector2(132f, 30f), ScoutColor, OnScoutLeft);
-            CreateButton("FieldScoutScan", fieldScoutPanel.transform, "scan", new Vector2(72f, -2f), new Vector2(132f, 30f), GoalColor, OnScoutScan);
-            CreateButton("FieldScoutRight", fieldScoutPanel.transform, "右へ", new Vector2(-72f, -38f), new Vector2(132f, 30f), ScoutColor, OnScoutRight);
-            CreateButton("FieldScoutBack", fieldScoutPanel.transform, "後ろへ", new Vector2(72f, -38f), new Vector2(132f, 30f), ScoutColor, OnScoutBack);
+            var fieldTransportPanel = CreatePanel("FieldTransportControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 268f), new Vector2(326f, 160f), CardColor);
+            CreateText("FieldTransportTitle", fieldTransportPanel.transform, "Transporter", 15, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, 62f), new Vector2(286f, 24f));
+            CreateButton("FieldTransportRun", fieldTransportPanel.transform, "移動開始", new Vector2(-72f, 26f), new Vector2(132f, 32f), StartColor, OnRunTransporter);
+            CreateButton("FieldTransportStop", fieldTransportPanel.transform, "移動中断", new Vector2(72f, 26f), new Vector2(132f, 32f), ObstacleColor, OnStopTransporter);
+            CreateButton("FieldBuilderAppeal", fieldTransportPanel.transform, "Builderアピール", new Vector2(0f, -12f), new Vector2(276f, 30f), LineColor, OnBuilderAppeal);
+            CreateButton("FieldAutoTransporter", fieldTransportPanel.transform, "Auto搬送", new Vector2(0f, -50f), new Vector2(276f, 30f), StartColor, OnToggleAutoTransporter);
+            var fieldScoutPanel = CreatePanel("FieldScoutControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 60f), new Vector2(326f, 202f), CardColor);
+            CreateText("FieldScoutTitle", fieldScoutPanel.transform, "Scout", 15, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 84f), new Vector2(286f, 24f));
+            CreateButton("FieldScoutForward", fieldScoutPanel.transform, "前へ", new Vector2(0f, 52f), new Vector2(132f, 30f), ScoutColor, OnScoutForward);
+            CreateButton("FieldScoutLeft", fieldScoutPanel.transform, "左へ", new Vector2(-72f, 16f), new Vector2(132f, 30f), ScoutColor, OnScoutLeft);
+            CreateButton("FieldScoutScan", fieldScoutPanel.transform, "scan", new Vector2(72f, 16f), new Vector2(132f, 30f), GoalColor, OnScoutScan);
+            CreateButton("FieldScoutRight", fieldScoutPanel.transform, "右へ", new Vector2(-72f, -20f), new Vector2(132f, 30f), ScoutColor, OnScoutRight);
+            CreateButton("FieldScoutBack", fieldScoutPanel.transform, "後ろへ", new Vector2(72f, -20f), new Vector2(132f, 30f), ScoutColor, OnScoutBack);
+            CreateButton("FieldScoutAuto", fieldScoutPanel.transform, "Scout自動", new Vector2(0f, -58f), new Vector2(276f, 30f), ScoutColor, OnAutoScoutRoute);
             fieldView.SetActive(false);
         }
 
