@@ -25,6 +25,7 @@ The repeated victory promise remains:
 - Automatically builds the fixed tactical field after the three roles connect, then sends Transporter / Scout / Builder to the `x=-3` start line.
 - Keeps the control screen open after the automatic start-line move; the player opens `FIELD VIEW` manually after confirming all three cubes moved.
 - Provides `Retry Start Line` as a recovery control. It checks each role's current mat position and resends start-line movement only to roles that are not yet readable at their assigned start cell.
+- Provides `Builder再配置` as a focused recovery control when the third connected cube does not move during setup.
 - Keeps the short left-right role appeal available as an Inspector option, but leaves it off by default to reduce BLE command density after connection.
 - Shows a Japanese setup guide using the bundled Noto Sans JP font asset.
 - Keeps `Capture Current Anchor` out of the main Phase 5 flow; fixed-map setup replaces the old observation-first flow.
@@ -48,6 +49,7 @@ The repeated victory promise remains:
 - Adds Transporter start / stop controls.
 - Keeps Auto Transporter enabled by default. When scan results open a safe route, the Transporter starts automatically from `(-3,0)`.
 - Adds `Scout Auto`, which scans, moves through known passable cells, and follows the current waypoint plan: `(-3,1) -> (1,1) -> (1,-2) -> (-2,-2)`.
+- Shifts the rendered tactical map left in `FIELD VIEW` and narrows the right-side controls to reduce overlap during recording.
 - Keeps Builder gameplay unimplemented, with a debug self-appeal button only.
 
 ## Saturday Test Flow
@@ -92,6 +94,7 @@ The repeated victory promise remains:
 - Confirmed by `dotnet build Assembly-CSharp.csproj -v:minimal`: C# build succeeds with no `ToioTacticalField` errors.
 - Confirmed by 2026-06-13 device test: Scout movement and scan reveal work after manual start-line recovery.
 - Known device-test issue: one cube may ignore automatic start-line `TargetMove` and `Retry Start Line` even though BLE connection and ID acquisition are visible. Test another Core Cube / firmware state before adding more setup logic.
+- Follow-up mitigation: start-line movement now waits longer between role commands, retries three times, and provides `Builder再配置` for the third role.
 - Needs Unity Editor asset import / Play Mode check after the bundled `Resources/Fonts/NotoSansJP-VF.ttf` is imported.
 - Needs Unity Editor Play Mode visual check for UI panel overlap after Phase 5.1 controls.
 - Needs future device check: Transporter `GOAL REACHED` after Scout-driven map reveal.
@@ -103,6 +106,7 @@ The repeated victory promise remains:
 - `Logs/2026-06-14-phase5-1-scanned-route.md`
 - `Logs/2026-06-20-phase5-2-foundation.md`
 - `Logs/2026-06-20-phase5-3-auto-scout-transporter.md`
+- `Logs/2026-06-20-phase5-3-device-followup.md`
 
 ## Saturday Short Hook
 

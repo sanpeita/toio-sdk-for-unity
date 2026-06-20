@@ -69,6 +69,7 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private float anchorDiameter = 0.82f;
         [SerializeField] private float observationDiameter = 0.38f;
         [SerializeField] private bool useFallbackPointsWhenMatIdMissing = true;
+        [SerializeField] private Vector3 fieldViewWorldOffset = new Vector3(-2.2f, 0f, 0f);
 
         [Header("Tactical Field Convert")]
         [SerializeField] private float tacticalCellHeight = 0.12f;
@@ -98,8 +99,9 @@ namespace toio.Experiments.ToioTacticalField
         [SerializeField] private int scoutMoveMaxSpeed = 45;
         [SerializeField] private float roughCellSpeedMultiplier = 0.5f;
         [SerializeField] private int startLineMoveMaxSpeed = 40;
-        [SerializeField] private int startLineMoveCommandSpacingMs = 450;
+        [SerializeField] private int startLineMoveCommandSpacingMs = 800;
         [SerializeField] private float startLineArrivalToleranceMatDots = 24f;
+        [SerializeField] private int startLineMoveAttempts = 3;
 
         [Header("Phase 5.3 Automation")]
         [SerializeField] private bool autoTransporterEnabled = true;
@@ -369,6 +371,40 @@ namespace toio.Experiments.ToioTacticalField
                     : "開始ライン再配置: 読み取れる役割はすでに x=-3 上です。";
                 tacticalFieldMessage = $"戦域コンバート済み | 再配置 {resent}";
                 scoutMessage = FormatScoutMessage("Scout待機中");
+                RefreshRuntimeUi();
+            }
+            finally
+            {
+                isStartLineRetrying = false;
+            }
+        }
+
+        public async void OnRetryBuilderStartLine()
+        {
+            if (isStartLineRetrying)
+            {
+                return;
+            }
+
+            if (builderCube == null || !builderCube.isConnected)
+            {
+                roleMessage = "Builder再配置: Builderが未接続です。接続順の3台目を確認してください。";
+                RefreshRuntimeUi();
+                return;
+            }
+
+            isStartLineRetrying = true;
+            try
+            {
+                if (tacticalCellPoints.Length == 0 && !ConvertFixedTacticalField(false, "Builder再配置のため、固定戦域を生成します。"))
+                {
+                    return;
+                }
+
+                observationMessage = "Builder再配置: 3台目に開始ライン移動を再送します。";
+                RefreshRuntimeUi();
+                await MoveRoleToStartCell("Builder", builderCube, BuilderStartCell, 93);
+                scoutMessage = FormatScoutMessage("Builder再配置を送信");
                 RefreshRuntimeUi();
             }
             finally
@@ -1020,9 +1056,10 @@ namespace toio.Experiments.ToioTacticalField
             }
 
             var moveSent = false;
-            for (var attempt = 1; attempt <= 2; attempt++)
+            var attemptCount = Mathf.Max(1, startLineMoveAttempts);
+            for (var attempt = 1; attempt <= attemptCount; attempt++)
             {
-                roleMessage = $"{roleName}: 開始セル ({logicalCell.x},{logicalCell.y}) へ移動中 [{attempt}/2]。";
+                roleMessage = $"{roleName}: 開始セル ({logicalCell.x},{logicalCell.y}) へ移動中 [{attempt}/{attemptCount}]。";
                 RefreshRuntimeUi();
                 var ready = await WaitUntilCubeControllable(cube);
                 if (!isSceneActive)
@@ -1561,7 +1598,7 @@ namespace toio.Experiments.ToioTacticalField
                 var cell = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 cell.name = $"TacticalCell_{logical.x}_{logical.y}";
                 cell.transform.SetParent(tacticalFieldRoot);
-                cell.transform.position = MatToWorld(points[index], tacticalCellHeight);
+                cell.transform.position = MatToFieldWorld(points[index], tacticalCellHeight);
                 cell.transform.rotation = rotation;
                 cell.transform.localScale = new Vector3(worldCellSize, tacticalCellHeight, worldCellSize);
                 var color = ResolveCellColor(logical, row);
@@ -1943,7 +1980,7 @@ namespace toio.Experiments.ToioTacticalField
             var scoutMarker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             scoutMarker.name = "ScoutLogicalPosition";
             scoutMarker.transform.SetParent(tacticalFieldRoot);
-            scoutMarker.transform.position = MatToWorld(scoutPoint, tacticalCellHeight + 0.2f);
+            scoutMarker.transform.position = MatToFieldWorld(scoutPoint, tacticalCellHeight + 0.2f);
             scoutMarker.transform.rotation = rotation;
             scoutMarker.transform.localScale = new Vector3(worldCellSize * 0.46f, 0.22f, worldCellSize * 0.46f);
             scoutMarker.GetComponent<Renderer>().material = CreateMaterial("MAT_ScoutLogicalPosition", ScoutColor);
@@ -1962,7 +1999,7 @@ namespace toio.Experiments.ToioTacticalField
                     var scanMarker = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     scanMarker.name = $"ScoutScanRadius_{logical.x}_{logical.y}";
                     scanMarker.transform.SetParent(tacticalFieldRoot);
-                    scanMarker.transform.position = MatToWorld(point, tacticalCellHeight + 0.05f);
+                    scanMarker.transform.position = MatToFieldWorld(point, tacticalCellHeight + 0.05f);
                     scanMarker.transform.rotation = rotation;
                     scanMarker.transform.localScale = new Vector3(worldCellSize * 0.28f, 0.05f, worldCellSize * 0.28f);
                     scanMarker.GetComponent<Renderer>().material = CreateMaterial($"MAT_{scanMarker.name}", ScanColor);
@@ -2011,6 +2048,11 @@ namespace toio.Experiments.ToioTacticalField
             );
         }
 
+        private Vector3 MatToFieldWorld(Vector2 matPoint, float height)
+        {
+            return MatToWorld(matPoint, height) + fieldViewWorldOffset;
+        }
+
         private void BuildUi()
         {
             var canvas = FindObjectOfType<Canvas>();
@@ -2049,7 +2091,8 @@ namespace toio.Experiments.ToioTacticalField
             CreateButton("Run", actions.transform, "移動開始", new Vector2(-72f, -200f), new Vector2(132f, 34f), StartColor, OnRunTransporter, true);
             CreateButton("StopRun", actions.transform, "移動中断", new Vector2(72f, -200f), new Vector2(132f, 34f), ObstacleColor, OnStopTransporter, true);
             CreateButton("RetryStart", actions.transform, "開始ライン再配置", new Vector2(0f, -242f), new Vector2(276f, 34f), GoalColor, OnRetryStartLineMoves, true);
-            CreateButton("BuilderAppeal", actions.transform, "Builder自己アピール", new Vector2(0f, -282f), new Vector2(276f, 34f), LineColor, OnBuilderAppeal, true);
+            CreateButton("BuilderAppeal", actions.transform, "Builder自己アピール", new Vector2(-72f, -282f), new Vector2(132f, 34f), LineColor, OnBuilderAppeal, true);
+            CreateButton("BuilderRetry", actions.transform, "Builder再配置", new Vector2(72f, -282f), new Vector2(132f, 34f), GoalColor, OnRetryBuilderStartLine, true);
             CreateButton("Clear", actions.transform, "戦域リセット", new Vector2(-72f, -322f), new Vector2(132f, 32f), LineColor, OnClearAnchors, true);
             CreateButton("Back", actions.transform, "Launcherへ", new Vector2(72f, -322f), new Vector2(132f, 32f), MutedTextColor, OnBackToLauncher, true);
 
@@ -2067,20 +2110,21 @@ namespace toio.Experiments.ToioTacticalField
             var fieldViewBar = CreatePanel("FieldViewBar", fieldView.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(780f, 54f), CardColor);
             fieldViewStatusLabel = CreateText("FieldViewStatus", fieldViewBar.transform, string.Empty, 18, FontStyle.Bold, TextAnchor.MiddleLeft, TextColor, new Vector2(-90f, 0f), new Vector2(560f, 38f));
             CreateButton("ReturnToControls", fieldViewBar.transform, "操作へ戻る", new Vector2(285f, 0f), new Vector2(180f, 36f), GoalColor, OnShowControlView);
-            var fieldTransportPanel = CreatePanel("FieldTransportControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 268f), new Vector2(326f, 160f), CardColor);
-            CreateText("FieldTransportTitle", fieldTransportPanel.transform, "Transporter", 15, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, 62f), new Vector2(286f, 24f));
-            CreateButton("FieldTransportRun", fieldTransportPanel.transform, "移動開始", new Vector2(-72f, 26f), new Vector2(132f, 32f), StartColor, OnRunTransporter);
-            CreateButton("FieldTransportStop", fieldTransportPanel.transform, "移動中断", new Vector2(72f, 26f), new Vector2(132f, 32f), ObstacleColor, OnStopTransporter);
-            CreateButton("FieldBuilderAppeal", fieldTransportPanel.transform, "Builderアピール", new Vector2(0f, -12f), new Vector2(276f, 30f), LineColor, OnBuilderAppeal);
-            CreateButton("FieldAutoTransporter", fieldTransportPanel.transform, "Auto搬送", new Vector2(0f, -50f), new Vector2(276f, 30f), StartColor, OnToggleAutoTransporter);
-            var fieldScoutPanel = CreatePanel("FieldScoutControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-190f, 60f), new Vector2(326f, 202f), CardColor);
-            CreateText("FieldScoutTitle", fieldScoutPanel.transform, "Scout", 15, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 84f), new Vector2(286f, 24f));
-            CreateButton("FieldScoutForward", fieldScoutPanel.transform, "前へ", new Vector2(0f, 52f), new Vector2(132f, 30f), ScoutColor, OnScoutForward);
-            CreateButton("FieldScoutLeft", fieldScoutPanel.transform, "左へ", new Vector2(-72f, 16f), new Vector2(132f, 30f), ScoutColor, OnScoutLeft);
-            CreateButton("FieldScoutScan", fieldScoutPanel.transform, "scan", new Vector2(72f, 16f), new Vector2(132f, 30f), GoalColor, OnScoutScan);
-            CreateButton("FieldScoutRight", fieldScoutPanel.transform, "右へ", new Vector2(-72f, -20f), new Vector2(132f, 30f), ScoutColor, OnScoutRight);
-            CreateButton("FieldScoutBack", fieldScoutPanel.transform, "後ろへ", new Vector2(72f, -20f), new Vector2(132f, 30f), ScoutColor, OnScoutBack);
-            CreateButton("FieldScoutAuto", fieldScoutPanel.transform, "Scout自動", new Vector2(0f, -58f), new Vector2(276f, 30f), ScoutColor, OnAutoScoutRoute);
+            var fieldTransportPanel = CreatePanel("FieldTransportControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-142f, 270f), new Vector2(252f, 148f), CardColor);
+            CreateText("FieldTransportTitle", fieldTransportPanel.transform, "Transporter", 15, FontStyle.Bold, TextAnchor.MiddleCenter, StartColor, new Vector2(0f, 55f), new Vector2(222f, 22f));
+            CreateButton("FieldTransportRun", fieldTransportPanel.transform, "移動開始", new Vector2(-58f, 24f), new Vector2(104f, 30f), StartColor, OnRunTransporter);
+            CreateButton("FieldTransportStop", fieldTransportPanel.transform, "移動中断", new Vector2(58f, 24f), new Vector2(104f, 30f), ObstacleColor, OnStopTransporter);
+            CreateButton("FieldBuilderAppeal", fieldTransportPanel.transform, "Builderアピール", new Vector2(0f, -10f), new Vector2(224f, 28f), LineColor, OnBuilderAppeal);
+            CreateButton("FieldBuilderRetry", fieldTransportPanel.transform, "Builder再配置", new Vector2(-58f, -44f), new Vector2(104f, 28f), GoalColor, OnRetryBuilderStartLine);
+            CreateButton("FieldAutoTransporter", fieldTransportPanel.transform, "Auto搬送", new Vector2(58f, -44f), new Vector2(104f, 28f), StartColor, OnToggleAutoTransporter);
+            var fieldScoutPanel = CreatePanel("FieldScoutControls", fieldView.transform, new Vector2(1f, 0f), new Vector2(-142f, 92f), new Vector2(252f, 174f), CardColor);
+            CreateText("FieldScoutTitle", fieldScoutPanel.transform, "Scout", 15, FontStyle.Bold, TextAnchor.MiddleCenter, ScoutColor, new Vector2(0f, 70f), new Vector2(222f, 22f));
+            CreateButton("FieldScoutForward", fieldScoutPanel.transform, "前へ", new Vector2(0f, 42f), new Vector2(104f, 28f), ScoutColor, OnScoutForward);
+            CreateButton("FieldScoutLeft", fieldScoutPanel.transform, "左へ", new Vector2(-58f, 8f), new Vector2(104f, 28f), ScoutColor, OnScoutLeft);
+            CreateButton("FieldScoutScan", fieldScoutPanel.transform, "scan", new Vector2(58f, 8f), new Vector2(104f, 28f), GoalColor, OnScoutScan);
+            CreateButton("FieldScoutRight", fieldScoutPanel.transform, "右へ", new Vector2(-58f, -26f), new Vector2(104f, 28f), ScoutColor, OnScoutRight);
+            CreateButton("FieldScoutBack", fieldScoutPanel.transform, "後ろへ", new Vector2(58f, -26f), new Vector2(104f, 28f), ScoutColor, OnScoutBack);
+            CreateButton("FieldScoutAuto", fieldScoutPanel.transform, "Scout自動", new Vector2(0f, -60f), new Vector2(224f, 28f), ScoutColor, OnAutoScoutRoute);
             fieldView.SetActive(false);
         }
 
